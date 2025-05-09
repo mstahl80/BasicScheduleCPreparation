@@ -1,20 +1,22 @@
-//
-//  BasicScheduleCPreparationApp.swift
-//  BasicScheduleCPreparation
-//
-//  Created by Matthew Stahl on 5/7/25.
-//
-
+// BasicScheduleCPreparationApp.swift
 import SwiftUI
 
 @main
 struct BasicScheduleCPreparationApp: App {
     let persistenceController = PersistenceController.shared
-
+    @StateObject private var authManager = UserAuthManager.shared
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
+            if authManager.isAuthenticated {
+                // Main app
+                ScheduleListView()
+                    .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                    .environmentObject(authManager)
+            } else {
+                // Login screen
+                LoginView()
+            }
         }
     }
 }
