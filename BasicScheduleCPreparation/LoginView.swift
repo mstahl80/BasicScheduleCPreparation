@@ -3,12 +3,17 @@ import SwiftUI
 import AuthenticationServices
 
 struct LoginView: View {
-    @EnvironmentObject var authManager: UserAuthManager
+    // Remove EnvironmentObject and use State instead
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var invitationCode = ""
     @State private var isValidatingCode = false
     @State private var showStandaloneConfirmation = false
+    
+    // Helper to check if user is using shared data
+    private var isUsingSharedData: Bool {
+        UserDefaults.standard.bool(forKey: "isUsingSharedData")
+    }
     
     var body: some View {
         NavigationStack {
@@ -25,7 +30,7 @@ struct LoginView: View {
                     .padding()
                 
                 // Show different content based on whether shared mode is enabled
-                if authManager.isUsingSharedData {
+                if isUsingSharedData {
                     // Shared data mode - show login options
                     sharedDataLoginContent
                 } else {
@@ -36,10 +41,6 @@ struct LoginView: View {
                 Spacer()
             }
             .padding()
-            .onReceive(authManager.$authError.compactMap { $0 }) { error in
-                errorMessage = error.localizedDescription
-                showingError = true
-            }
             .alert("Error", isPresented: $showingError) {
                 Button("OK") { }
             } message: {
@@ -48,7 +49,7 @@ struct LoginView: View {
             .alert("Use Standalone Mode?", isPresented: $showStandaloneConfirmation) {
                 Button("Cancel", role: .cancel) { }
                 Button("Continue") {
-                    authManager.toggleDataSharingMode(useSharedData: false)
+                    toggleDataSharingMode(useShared: false)
                 }
             } message: {
                 Text("Your data will be stored locally on this device only and won't be shared with others.")
@@ -56,7 +57,7 @@ struct LoginView: View {
             .onAppear {
                 // Set up the context provider
                 #if os(iOS)
-                authManager.setContextProvider(ContextProvider())
+                setupContextProvider()
                 #endif
             }
         }
@@ -132,7 +133,7 @@ struct LoginView: View {
             
             // Standalone mode option
             Button {
-                authManager.toggleDataSharingMode(useSharedData: false)
+                toggleDataSharingMode(useShared: false)
             } label: {
                 HStack {
                     Image(systemName: "person")
@@ -148,30 +149,145 @@ struct LoginView: View {
         }
     }
     
+    // Helper methods that don't require UserAuthManager type
+    
     // Validate invitation code
     private func validateInvitationCode() {
         isValidatingCode = true
         
-        authManager.acceptInvitation(code: invitationCode) { success, message in
+        // Check if authenticated using AuthAccess
+        let isAuthenticated = isUserAuthenticated()
+        if !isAuthenticated {
+            // Sign in with Apple
+            AuthAccess.signInWithApple()
+            isValidatingCode = false
+            return
+        }
+        
+        // Accept invitation using CloudKit directly
+        let code = invitationCode
+        CloudKitManager.shared.acceptInvitation(code: code) { success, message in
             isValidatingCode = false
             
-            if !success {
+            if success {
+                // Mark that we're using shared data
+                UserDefaults.standard.set(true, forKey: "isUsingSharedData")
+                
+                // Switch to shared store
+                PersistenceController.shared.switchToSharedStore()
+                
+                // Refresh user role
+                refreshRole()
+            } else {
                 errorMessage = message ?? "Invalid invitation code. Please try again."
                 showingError = true
             }
-            // If successful, the authManager would have already updated isUsingSharedData
-            // which will trigger the UI to update accordingly
         }
     }
+    
+    // Helper to check if user is authenticated
+    private func isUserAuthenticated() -> Bool {
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAuthenticated")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        
+        // Default to checking UserDefaults
+        return UserDefaults.standard.bool(forKey: "isAuthenticated")
+    }
+    
+    // Helper to toggle data sharing mode
+    private func toggleDataSharingMode(useShared: Bool) {
+        UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
+        
+        if !useShared {
+            PersistenceController.shared.switchToLocalStore()
+        } else {
+            PersistenceController.shared.switchToSharedStore()
+        }
+        
+        // Force view update - using modern approach
+        #if os(iOS)
+        if #available(iOS 15.0, *) {
+            // Use scene-based window access
+            let activeScene = UIApplication.shared.connectedScenes
+                .filter { $0.activationState == .foregroundActive }
+                .first as? UIWindowScene
+            
+            activeScene?.keyWindow?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
+        } else {
+            // Legacy approach
+            UIApplication.shared.windows.first?.rootViewController?.setNeedsStatusBarAppearanceUpdate()
+        }
+        #endif
+    }
+    
+    // Helper to refresh role
+    private func refreshRole() {
+        // Try to call refreshUserRole on the auth manager
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("refreshUserRole")
+            if authObj.responds(to: selector) {
+                authObj.perform(selector)
+            }
+        }
+    }
+    
+    // Setup context provider
+    #if os(iOS)
+    private func setupContextProvider() {
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let contextProvider = ContextProvider()
+            let selector = NSSelectorFromString("setContextProvider:")
+            if authObj.responds(to: selector) {
+                _ = authObj.perform(selector, with: contextProvider)
+            }
+        }
+    }
+    #endif
 }
 
 #if os(iOS)
 // Context provider for Sign in with Apple
 class ContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        // Modern approach to get the window using windowScene
+        if #available(iOS 15.0, *) {
+            // Get the active window scene
+            let activeScene = UIApplication.shared.connectedScenes
+                .filter { $0.activationState == .foregroundActive }
+                .first as? UIWindowScene
+            
+            // Get window from the active scene
+            if let window = activeScene?.keyWindow ?? activeScene?.windows.first {
+                return window
+            }
+        }
+        
+        // Fallback for older iOS versions
         let scenes = UIApplication.shared.connectedScenes
         let windowScene = scenes.first as? UIWindowScene
         return windowScene?.windows.first ?? UIWindow()
+    }
+}
+#endif
+
+// Preview provider
+#if DEBUG
+struct LoginView_Previews: PreviewProvider {
+    static var previews: some View {
+        LoginView()
     }
 }
 #endif

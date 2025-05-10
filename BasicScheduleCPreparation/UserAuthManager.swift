@@ -1,19 +1,20 @@
-// UserAuthManager.swift - Update with CloudKit integration
+// AdminAuthManager.swift
 import Foundation
 import AuthenticationServices
 import SwiftUI
+import CloudKit
 
-class UserAuthManager: NSObject, ObservableObject {
-    @Published var currentUser: User?
+class AdminAuthManager: NSObject, ObservableObject {
+    @Published var currentUser: AppUser?
     @Published var isAuthenticated = false
     @Published var isUsingSharedData = false
     @Published var authError: Error?
     @Published var userRole: CloudKitManager.UserPermissionRecord.UserRole?
     
-    static let shared = UserAuthManager()
+    static let shared = AdminAuthManager()
     
     // User model - Codable for persistence
-    struct User: Identifiable, Codable {
+    struct AppUser: Identifiable, Codable {
         let id: String // Apple ID
         let firstName: String?
         let lastName: String?
@@ -34,7 +35,6 @@ class UserAuthManager: NSObject, ObservableObject {
     
     // Store the presentation context provider for later use
     private weak var contextProvider: ASAuthorizationControllerPresentationContextProviding?
-    private let cloudKitManager = CloudKitManager.shared
     
     private override init() {
         super.init()
@@ -46,7 +46,7 @@ class UserAuthManager: NSObject, ObservableObject {
     private func checkExistingAuth() {
         // Try to load saved credentials
         if let userData = UserDefaults.standard.data(forKey: "currentUser"),
-           let user = try? JSONDecoder().decode(User.self, from: userData) {
+           let user = try? JSONDecoder().decode(AppUser.self, from: userData) {
             self.currentUser = user
             self.isAuthenticated = true
             
@@ -79,7 +79,7 @@ class UserAuthManager: NSObject, ObservableObject {
             controller.presentationContextProvider = contextProvider
         } else {
             // Create a temporary context provider
-            let tempProvider = TemporaryPresentationContextProvider()
+            let tempProvider = AdminPresentationContextProvider()
             controller.presentationContextProvider = tempProvider
         }
         #endif
@@ -105,6 +105,9 @@ class UserAuthManager: NSObject, ObservableObject {
         // If turning off shared mode, make sure we're using the local store
         if !useSharedData {
             PersistenceController.shared.switchToLocalStore()
+            
+            // Clear the user role when switching to local mode
+            self.userRole = nil
         } else {
             // If turning on shared mode, we need authentication
             // We'll handle the container switch after authentication
@@ -132,7 +135,7 @@ class UserAuthManager: NSObject, ObservableObject {
         }
         
         // Validate and accept invitation via CloudKit
-        cloudKitManager.acceptInvitation(code: code) { success, message in
+        CloudKitManager.shared.acceptInvitation(code: code) { success, message in
             if success {
                 // Mark that we're using shared data
                 self.isUsingSharedData = true
@@ -194,9 +197,25 @@ class UserAuthManager: NSObject, ObservableObject {
             return
         }
         
-        cloudKitManager.checkUserAccessLevel { role in
+        CloudKitManager.shared.checkUserAccessLevel { role in
             DispatchQueue.main.async {
                 self.userRole = role
+            }
+        }
+    }
+    
+    // Added method to refresh user role
+    func refreshUserRole() {
+        // Only refresh if using shared data and authenticated
+        guard isUsingSharedData && isAuthenticated else {
+            userRole = nil
+            return
+        }
+        
+        CloudKitManager.shared.checkUserAccessLevel { role in
+            DispatchQueue.main.async {
+                self.userRole = role
+                print("User role updated to: \(String(describing: role))")
             }
         }
     }
@@ -204,7 +223,7 @@ class UserAuthManager: NSObject, ObservableObject {
 
 // Temporary presentation context provider for iOS
 #if os(iOS)
-class TemporaryPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
+class AdminPresentationContextProvider: NSObject, ASAuthorizationControllerPresentationContextProviding {
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         let scenes = UIApplication.shared.connectedScenes
         let windowScene = scenes.first as? UIWindowScene
@@ -214,7 +233,7 @@ class TemporaryPresentationContextProvider: NSObject, ASAuthorizationControllerP
 #endif
 
 // MARK: - ASAuthorizationControllerDelegate
-extension UserAuthManager: ASAuthorizationControllerDelegate {
+extension AdminAuthManager: ASAuthorizationControllerDelegate {
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
         if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
             let userId = appleIDCredential.user
@@ -227,7 +246,7 @@ extension UserAuthManager: ASAuthorizationControllerDelegate {
                 print("Email: \(email)")
             }
             
-            let user = User(id: userId, firstName: firstName, lastName: lastName, email: email)
+            let user = AppUser(id: userId, firstName: firstName, lastName: lastName, email: email)
             
             // Save user
             if let encoded = try? JSONEncoder().encode(user) {

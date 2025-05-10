@@ -1,13 +1,16 @@
-// UserProfileView.swift - Updated with CloudKit Admin View
+// UserProfileView.swift
 import SwiftUI
+import CloudKit
 
 struct UserProfileView: View {
+    // Fix the environment object declaration - make sure UserAuthManager is in scope
     @EnvironmentObject var authManager: UserAuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var showingSignOutConfirmation = false
     @State private var showingResetConfirmation = false
     @State private var showingSuccess = false
     @State private var successMessage = ""
+    @State private var showingAdminSetup = false
     
     var body: some View {
         NavigationStack {
@@ -55,22 +58,44 @@ struct UserProfileView: View {
                     
                     // Only show share option in shared mode
                     if authManager.isUsingSharedData {
-                        NavigationLink(destination: ShareDataView()) {
-                            HStack {
-                                Image(systemName: "person.2.fill")
-                                Text("Invite Others")
-                            }
-                        }
-                        
-                        // Admin panel - only show if user is admin
                         if authManager.isAdmin() {
-                            NavigationLink(destination: AdminView()) {
+                            NavigationLink(destination: ShareDataView()) {
                                 HStack {
-                                    Image(systemName: "person.2.badge.key.fill")
-                                    Text("Manage Access")
+                                    Image(systemName: "person.2.fill")
+                                    Text("Invite Others")
                                 }
                             }
                         }
+                    }
+                }
+                
+                // Admin Section
+                Section("Admin Management") {
+                    if authManager.isAdmin() {
+                        NavigationLink(destination: AdminView()) {
+                            HStack {
+                                Image(systemName: "person.2.badge.key.fill")
+                                Text("Manage Access")
+                            }
+                        }
+                        .foregroundColor(.blue)
+                    } else {
+                        Button {
+                            showingAdminSetup = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "key.fill")
+                                Text("Set Up as Administrator")
+                            }
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    
+                    // Show explanation text
+                    if !authManager.isAdmin() {
+                        Text("Administrators can invite other users and manage access to shared data.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                 }
                 
@@ -155,6 +180,10 @@ struct UserProfileView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(successMessage)
+            }
+            .sheet(isPresented: $showingAdminSetup) {
+                AdminSetupView()
+                    .environmentObject(authManager)
             }
         }
     }
@@ -251,71 +280,71 @@ struct UserProfileView: View {
             do {
                 try fileManager.removeItem(at: localStoreURL)
                 print("Successfully deleted local store")
-                            } catch {
-                                success = false
-                                errorMessages.append("Failed to delete local store: \(error.localizedDescription)")
-                                print("Failed to delete local store: \(error)")
-                            }
-                        }
-                        
-                        // Try to delete the shared store
-                        if fileManager.fileExists(atPath: sharedStoreURL.path) {
-                            do {
-                                try fileManager.removeItem(at: sharedStoreURL)
-                                print("Successfully deleted shared store")
-                            } catch {
-                                success = false
-                                errorMessages.append("Failed to delete shared store: \(error.localizedDescription)")
-                                print("Failed to delete shared store: \(error)")
-                            }
-                        }
-                        
-                        // Try to delete the default store if it exists
-                        if fileManager.fileExists(atPath: defaultStoreURL.path) {
-                            do {
-                                try fileManager.removeItem(at: defaultStoreURL)
-                                print("Successfully deleted default store")
-                            } catch {
-                                success = false
-                                errorMessages.append("Failed to delete default store: \(error.localizedDescription)")
-                                print("Failed to delete default store: \(error)")
-                            }
-                        }
-                        
-                        // Delete related files (shm, wal, etc.)
-                        let suffixes = ["-shm", "-wal"]
-                        for suffix in suffixes {
-                            let localSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_local.sqlite\(suffix)")
-                            let sharedSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_shared.sqlite\(suffix)")
-                            let defaultSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation.sqlite\(suffix)")
-                            
-                            try? fileManager.removeItem(at: localSuffixURL)
-                            try? fileManager.removeItem(at: sharedSuffixURL)
-                            try? fileManager.removeItem(at: defaultSuffixURL)
-                        }
-                        
-                        if success {
-                            successMessage = "Database reset successfully. The app will now restart."
-                            showingSuccess = true
-                            
-                            // Allow the success message to be shown before restarting
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                                // In a real app, prompt the user to restart manually
-                                // For development, we can force an exit
-                                exit(0)
-                            }
-                        } else {
-                            successMessage = "Database reset had errors: \(errorMessages.joined(separator: ", "))"
-                            showingSuccess = true
-                        }
-                    }
-                }
+            } catch {
+                success = false
+                errorMessages.append("Failed to delete local store: \(error.localizedDescription)")
+                print("Failed to delete local store: \(error)")
+            }
+        }
+        
+        // Try to delete the shared store
+        if fileManager.fileExists(atPath: sharedStoreURL.path) {
+            do {
+                try fileManager.removeItem(at: sharedStoreURL)
+                print("Successfully deleted shared store")
+            } catch {
+                success = false
+                errorMessages.append("Failed to delete shared store: \(error.localizedDescription)")
+                print("Failed to delete shared store: \(error)")
+            }
+        }
+        
+        // Try to delete the default store if it exists
+        if fileManager.fileExists(atPath: defaultStoreURL.path) {
+            do {
+                try fileManager.removeItem(at: defaultStoreURL)
+                print("Successfully deleted default store")
+            } catch {
+                success = false
+                errorMessages.append("Failed to delete default store: \(error.localizedDescription)")
+                print("Failed to delete default store: \(error)")
+            }
+        }
+        
+        // Delete related files (shm, wal, etc.)
+        let suffixes = ["-shm", "-wal"]
+        for suffix in suffixes {
+            let localSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_local.sqlite\(suffix)")
+            let sharedSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_shared.sqlite\(suffix)")
+            let defaultSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation.sqlite\(suffix)")
+            
+            try? fileManager.removeItem(at: localSuffixURL)
+            try? fileManager.removeItem(at: sharedSuffixURL)
+            try? fileManager.removeItem(at: defaultSuffixURL)
+        }
+        
+        if success {
+            successMessage = "Database reset successfully. The app will now restart."
+            showingSuccess = true
+            
+            // Allow the success message to be shown before restarting
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                // In a real app, prompt the user to restart manually
+                // For development, we can force an exit
+                exit(0)
+            }
+        } else {
+            successMessage = "Database reset had errors: \(errorMessages.joined(separator: ", "))"
+            showingSuccess = true
+        }
+    }
+}
 
-                #if DEBUG
-                struct UserProfileView_Previews: PreviewProvider {
-                    static var previews: some View {
-                        UserProfileView()
-                            .environmentObject(UserAuthManager.shared)
-                    }
-                }
-                #endif
+#if DEBUG
+struct UserProfileView_Previews: PreviewProvider {
+    static var previews: some View {
+        UserProfileView()
+            .environmentObject(UserAuthManager.shared)
+    }
+}
+#endif

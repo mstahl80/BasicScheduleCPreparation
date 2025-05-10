@@ -3,7 +3,7 @@ import SwiftUI
 import CloudKit
 
 struct AdminView: View {
-    @EnvironmentObject var authManager: UserAuthManager
+    // Remove EnvironmentObject and use direct access
     @Environment(\.dismiss) private var dismiss
     @StateObject private var cloudKitManager = CloudKitManager.shared
     
@@ -195,217 +195,215 @@ struct AdminView: View {
     
     // MARK: - Actions
         
-        private func performConfirmedAction() {
-            switch actionType {
-            case .deleteInvitation:
-                if let invitation = selectedInvitation {
-                    cloudKitManager.deleteInvitation(invitation) { error in
-                        if error == nil {
-                            resetSelection()
-                        }
+    private func performConfirmedAction() {
+        switch actionType {
+        case .deleteInvitation:
+            if let invitation = selectedInvitation {
+                cloudKitManager.deleteInvitation(invitation) { error in
+                    if error == nil {
+                        resetSelection()
                     }
                 }
-            case .revokeAccess:
-                if let permission = selectedPermission {
-                    cloudKitManager.revokeAccess(permission) { error in
-                        if error == nil {
-                            resetSelection()
-                        }
-                    }
-                }
-            case .changeRole:
-                if let permission = selectedPermission {
-                    cloudKitManager.updatePermissionRole(permission, newRole: newRoleForPermission) { error in
-                        if error == nil {
-                            resetSelection()
-                        }
-                    }
-                }
-            case .none:
-                break
             }
-        }
-        
-        private func resetSelection() {
-            selectedInvitation = nil
-            selectedPermission = nil
-            actionType = .none
+        case .revokeAccess:
+            if let permission = selectedPermission {
+                cloudKitManager.revokeAccess(permission) { error in
+                    if error == nil {
+                        resetSelection()
+                    }
+                }
+            }
+        case .changeRole:
+            if let permission = selectedPermission {
+                cloudKitManager.updatePermissionRole(permission, newRole: newRoleForPermission) { error in
+                    if error == nil {
+                        resetSelection()
+                    }
+                }
+            }
+        case .none:
+            break
         }
     }
-
-    // MARK: - Row Views
-
-    struct InvitationRow: View {
-        let invitation: CloudKitManager.InvitationRecord
-        let onDelete: () -> Void
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(invitation.email)
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Button {
-                        onDelete()
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundColor(.red)
-                    }
-                }
-                
-                Text("Code: \(invitation.code)")
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
-                    .padding(.vertical, 2)
-                    .padding(.horizontal, 6)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(4)
-                
-                Text("Created on \(invitation.created.formatted(date: .abbreviated, time: .shortened)) by \(invitation.creator)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 4)
-        }
+    
+    private func resetSelection() {
+        selectedInvitation = nil
+        selectedPermission = nil
+        actionType = .none
     }
+}
 
-    struct AcceptedInvitationRow: View {
-        let invitation: CloudKitManager.InvitationRecord
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 4) {
+// MARK: - Row Views
+
+struct InvitationRow: View {
+    let invitation: CloudKitManager.InvitationRecord
+    let onDelete: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
                 Text(invitation.email)
                     .font(.headline)
                 
-                HStack {
-                    Text("Accepted by \(invitation.acceptedBy ?? "Unknown")")
-                        .font(.subheadline)
-                    
-                    Spacer()
-                    
-                    if let date = invitation.acceptedDate {
-                        Text(date.formatted(date: .abbreviated, time: .shortened))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                Spacer()
                 
-                Text("Code: \(invitation.code)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                Button {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
             }
-            .padding(.vertical, 4)
+            
+            Text("Code: \(invitation.code)")
+                .font(.subheadline)
+                .foregroundColor(.blue)
+                .padding(.vertical, 2)
+                .padding(.horizontal, 6)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(4)
+            
+            Text("Created on \(invitation.created.formatted(date: .abbreviated, time: .shortened)) by \(invitation.creator)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
+        .padding(.vertical, 4)
     }
+}
 
-    struct UserPermissionRow: View {
-        let permission: CloudKitManager.UserPermissionRecord
-        let onRevoke: () -> Void
-        let onRoleChange: (CloudKitManager.UserPermissionRecord.UserRole) -> Void
-        
-        @State private var showingRoleMenu = false
-        
-        var body: some View {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(permission.userName)
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Button {
-                        onRevoke()
-                    } label: {
-                        Image(systemName: "xmark.circle")
-                            .foregroundColor(.red)
-                    }
-                }
+struct AcceptedInvitationRow: View {
+    let invitation: CloudKitManager.InvitationRecord
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(invitation.email)
+                .font(.headline)
+            
+            HStack {
+                Text("Accepted by \(invitation.acceptedBy ?? "Unknown")")
+                    .font(.subheadline)
                 
-                if let email = permission.email {
-                    Text(email)
-                        .font(.subheadline)
-                }
+                Spacer()
                 
-                HStack {
-                    // Role pill
-                    Menu {
-                        Button("Administrator") {
-                            onRoleChange(.admin)
-                        }
-                        
-                        Button("Editor") {
-                            onRoleChange(.editor)
-                        }
-                        
-                        Button("Viewer") {
-                            onRoleChange(.viewer)
-                        }
-                    } label: {
-                        HStack {
-                            Text(roleText)
-                                .font(.caption)
-                                .foregroundColor(roleTextColor)
-                            
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
-                                .foregroundColor(roleTextColor)
-                        }
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .background(roleBgColor)
-                        .cornerRadius(12)
-                    }
-                    
-                    Spacer()
-                    
-                    Text("Added \(permission.addedDate.formatted(date: .abbreviated, time: .omitted))")
+                if let date = invitation.acceptedDate {
+                    Text(date.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(.vertical, 4)
+            
+            Text("Code: \(invitation.code)")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        
-        private var roleText: String {
-            switch permission.role {
-            case .admin:
-                return "Administrator"
-            case .editor:
-                return "Editor"
-            case .viewer:
-                return "Viewer"
+        .padding(.vertical, 4)
+    }
+}
+
+struct UserPermissionRow: View {
+    let permission: CloudKitManager.UserPermissionRecord
+    let onRevoke: () -> Void
+    let onRoleChange: (CloudKitManager.UserPermissionRecord.UserRole) -> Void
+    
+    @State private var showingRoleMenu = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(permission.userName)
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button {
+                    onRevoke()
+                } label: {
+                    Image(systemName: "xmark.circle")
+                        .foregroundColor(.red)
+                }
+            }
+            
+            if let email = permission.email {
+                Text(email)
+                    .font(.subheadline)
+            }
+            
+            HStack {
+                // Role pill
+                Menu {
+                    Button("Administrator") {
+                        onRoleChange(.admin)
+                    }
+                    
+                    Button("Editor") {
+                        onRoleChange(.editor)
+                    }
+                    
+                    Button("Viewer") {
+                        onRoleChange(.viewer)
+                    }
+                } label: {
+                    HStack {
+                        Text(roleText)
+                            .font(.caption)
+                            .foregroundColor(roleTextColor)
+                        
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(roleTextColor)
+                    }
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(roleBgColor)
+                    .cornerRadius(12)
+                }
+                
+                Spacer()
+                
+                Text("Added \(permission.addedDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
-        
-        private var roleBgColor: Color {
-            switch permission.role {
-            case .admin:
-                return Color.purple.opacity(0.2)
-            case .editor:
-                return Color.blue.opacity(0.2)
-            case .viewer:
-                return Color.gray.opacity(0.2)
-            }
-        }
-        
-        private var roleTextColor: Color {
-            switch permission.role {
-            case .admin:
-                return Color.purple
-            case .editor:
-                return Color.blue
-            case .viewer:
-                return Color.gray
-            }
+        .padding(.vertical, 4)
+    }
+    
+    private var roleText: String {
+        switch permission.role {
+        case .admin:
+            return "Administrator"
+        case .editor:
+            return "Editor"
+        case .viewer:
+            return "Viewer"
         }
     }
-
-    struct AdminView_Previews: PreviewProvider {
-        static var previews: some View {
-            AdminView()
-                .environmentObject(UserAuthManager.shared)
+    
+    private var roleBgColor: Color {
+        switch permission.role {
+        case .admin:
+            return Color.purple.opacity(0.2)
+        case .editor:
+            return Color.blue.opacity(0.2)
+        case .viewer:
+            return Color.gray.opacity(0.2)
         }
     }
+    
+    private var roleTextColor: Color {
+        switch permission.role {
+        case .admin:
+            return Color.purple
+        case .editor:
+            return Color.blue
+        case .viewer:
+            return Color.gray
+        }
+    }
+}
 
+struct AdminView_Previews: PreviewProvider {
+    static var previews: some View {
+        AdminView()
+    }
+}

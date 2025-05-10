@@ -3,15 +3,23 @@ import SwiftUI
 import AuthenticationServices
 
 struct SignInWithAppleButton: View {
-    @ObservedObject var authManager = UserAuthManager.shared
+    @State private var isSigningIn = false
     
     var body: some View {
         Button(action: {
-            authManager.signInWithApple()
+            isSigningIn = true
+            AuthAccess.signInWithApple()
+            isSigningIn = false
         }) {
             HStack {
-                Image(systemName: "apple.logo")
-                    .font(.title2)
+                if isSigningIn {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: "apple.logo")
+                        .font(.title2)
+                }
                 Text("Sign in with Apple")
                     .font(.headline)
             }

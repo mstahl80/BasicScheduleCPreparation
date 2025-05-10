@@ -4,8 +4,17 @@ import SwiftUI
 @main
 struct BasicScheduleCPreparationApp: App {
     let persistenceController = PersistenceController.shared
-    @StateObject private var authManager = UserAuthManager.shared
+    // Remove StateObject for UserAuthManager
     @State private var databaseReady = false
+    
+    // Track auth state using UserDefaults
+    private var isAuthenticated: Bool {
+        UserDefaults.standard.bool(forKey: "isAuthenticated")
+    }
+    
+    private var isUsingSharedData: Bool {
+        UserDefaults.standard.bool(forKey: "isUsingSharedData")
+    }
     
     var body: some Scene {
         WindowGroup {
@@ -36,23 +45,20 @@ struct BasicScheduleCPreparationApp: App {
     @ViewBuilder
     var mainContent: some View {
         // Check if we're using a shared or standalone mode
-        if authManager.isUsingSharedData {
+        if isUsingSharedData {
             // For shared data access, require authentication
-            if authManager.isAuthenticated {
+            if isAuthenticated {
                 // Authenticated main app with shared data
                 ScheduleListView()
                     .environment(\.managedObjectContext, persistenceController.sharedContainer.viewContext)
-                    .environmentObject(authManager)
             } else {
                 // Login screen for shared data access
                 LoginView()
-                    .environmentObject(authManager)
             }
         } else {
             // Standalone mode - go straight to app with local data
             ScheduleListView()
                 .environment(\.managedObjectContext, persistenceController.localContainer.viewContext)
-                .environmentObject(authManager)
         }
     }
 }

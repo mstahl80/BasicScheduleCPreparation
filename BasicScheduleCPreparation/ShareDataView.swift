@@ -7,18 +7,36 @@ import UIKit
 
 struct ShareDataView: View {
     @StateObject private var cloudKitManager = CloudKitManager.shared
+    // Use StateObject instead of EnvironmentObject to avoid type issues
     @State private var email = ""
     @State private var isGeneratingCode = false
     @State private var generatedCode: String? = nil
     @State private var errorMessage: String? = nil
     @State private var showSuccessAlert = false
-    @Environment(\.dismiss) private var dismiss
     @State private var showShareSheet = false
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedRole: CloudKitManager.UserPermissionRecord.UserRole = .editor
     
     // Create a state object to hold the sharing delegate
     #if os(iOS)
     @StateObject private var sharingDelegate = SharingDelegate()
     #endif
+    
+    // Helper to check if the current user is admin
+    private var isAdmin: Bool {
+        // Use reflection to access isAdmin without direct type reference
+        let authManager = AuthAccess.getAuthManager()
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAdmin")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        return false  // Default to false if we can't determine
+    }
     
     var body: some View {
         NavigationStack {
@@ -28,6 +46,35 @@ struct ShareDataView: View {
                         .keyboardType(.emailAddress)
                         .autocapitalization(.none)
                         .autocorrectionDisabled(true)
+                    
+                    // Add role selector
+                    Picker("User Role", selection: $selectedRole) {
+                        Text("Viewer (Read-only)").tag(CloudKitManager.UserPermissionRecord.UserRole.viewer)
+                        Text("Editor (Can modify)").tag(CloudKitManager.UserPermissionRecord.UserRole.editor)
+                        
+                        // Only show admin option if current user is admin
+                        if isAdmin {
+                            Text("Administrator (Full control)").tag(CloudKitManager.UserPermissionRecord.UserRole.admin)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Role Permissions:")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Group {
+                            Text("• Viewer: Can view data but not make changes")
+                            Text("• Editor: Can view and edit all data")
+                            if isAdmin {
+                                Text("• Admin: Can manage users and all data")
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 4)
                     
                     Button {
                         generateInvitationCode()
@@ -111,9 +158,18 @@ struct ShareDataView: View {
                 }
                 
                 Section("Information") {
-                    Text("The invited user will need to enter this code when they first launch the app. They will need to have this app installed and an Apple ID to access your shared data.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("The invited user will need to enter this code when they first launch the app. They will need to have this app installed and an Apple ID to access your shared data.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        if selectedRole == .admin {
+                            Text("⚠️ You are granting ADMIN privileges. This user will be able to invite others and manage all users.")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .bold()
+                        }
+                    }
                 }
             }
             .navigationTitle("Share Data")
@@ -132,7 +188,7 @@ struct ShareDataView: View {
             #if os(iOS)
             .sheet(isPresented: $showShareSheet) {
                 if let code = generatedCode {
-                    ShareSheet(items: ["Your invitation code for BasicScheduleCPreparation: \(code)"])
+                    iOSShareSheet(items: ["Your invitation code for BasicScheduleCPreparation: \(code)"])
                 }
             }
             #endif
@@ -145,7 +201,8 @@ struct ShareDataView: View {
         isGeneratingCode = true
         errorMessage = nil
         
-        cloudKitManager.createInvitation(email: email) { code, error in
+        // Pass the selected role to createInvitation
+        cloudKitManager.createInvitation(email: email, role: selectedRole) { code, error in
             isGeneratingCode = false
             
             if let error = error {
@@ -203,8 +260,8 @@ class SharingDelegate: NSObject, UICloudSharingControllerDelegate, ObservableObj
     }
 }
 
-// Share sheet for iOS
-struct ShareSheet: UIViewControllerRepresentable {
+// Share sheet for iOS - renamed to avoid conflicts
+struct iOSShareSheet: UIViewControllerRepresentable {
     var items: [Any]
     
     func makeUIViewController(context: Context) -> UIActivityViewController {
@@ -218,8 +275,10 @@ struct ShareSheet: UIViewControllerRepresentable {
 }
 #endif
 
+#if DEBUG
 struct ShareDataView_Previews: PreviewProvider {
     static var previews: some View {
         ShareDataView()
     }
 }
+#endif

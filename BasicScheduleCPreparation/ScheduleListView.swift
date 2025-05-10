@@ -6,8 +6,6 @@ import UIKit
 import AppKit
 #endif
 
-// IMPORTANT: Remove any duplicate ScheduleViewModel class definition from this file!
-
 // Helper function for device IDs
 func getPlatformUserIdentifier() -> String {
     #if os(iOS)
@@ -29,7 +27,54 @@ struct ScheduleListView: View {
     @State private var showingDeleteConfirm = false
     @State private var itemToDelete: Schedule? = nil
     
-    @EnvironmentObject var authManager: UserAuthManager
+    // Helper to check if user is admin
+    private var isAdmin: Bool {
+        // Use reflection to access isAdmin without direct type reference
+        let authManager = AuthAccess.getAuthManager()
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAdmin")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        return false  // Default to false if we can't determine
+    }
+    
+    // Helper to check if shared data is enabled
+    private var isUsingSharedData: Bool {
+        return UserDefaults.standard.bool(forKey: "isUsingSharedData")
+    }
+    
+    // Helper to check if authenticated
+    private var isAuthenticated: Bool {
+        return UserDefaults.standard.bool(forKey: "isAuthenticated")
+    }
+    
+    // Helper to get current user display name
+    private func getCurrentUserDisplayName() -> String {
+        let authManager = AuthAccess.getAuthManager()
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("getCurrentUserDisplayName")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let name = result?.takeUnretainedValue() as? String {
+                    return name
+                }
+            }
+        }
+        
+        // Default device name if not found
+        #if os(iOS)
+        return UIDevice.current.name
+        #elseif os(macOS)
+        return Host.current().localizedName ?? "Mac User"
+        #else
+        return "Unknown User"
+        #endif
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -38,7 +83,7 @@ struct ScheduleListView: View {
                 SummaryView(viewModel: viewModel)
                     .navigationTitle("Financial Summary")
                     .toolbar {
-                        userProfileToolbarItems
+                        userProfileToolbarContent
                     }
             }
             .tabItem {
@@ -51,7 +96,7 @@ struct ScheduleListView: View {
                 listContent
                     .navigationTitle("Schedule C Entries")
                     .toolbar {
-                        transactionsToolbarItems
+                        transactionsToolbarContent
                     }
                     .searchable(text: $searchText, prompt: "Search transactions")
                     .refreshable {
@@ -64,11 +109,10 @@ struct ScheduleListView: View {
             .tag(1)
         }
         .sheet(isPresented: $showingAddSheet) {
-            ScheduleFormView(viewModel: viewModel, userId: authManager.getCurrentUserDisplayName(), editingItem: nil)
+            ScheduleFormView(viewModel: viewModel, userId: getCurrentUserDisplayName(), editingItem: nil)
         }
         .sheet(isPresented: $showingUserProfile) {
             UserProfileView()
-                .environmentObject(authManager)
         }
         .sheet(isPresented: $showingShareData) {
             ShareDataView()
@@ -108,7 +152,7 @@ struct ScheduleListView: View {
     private var listContent: some View {
         List {
             ForEach(filteredItems) { item in
-                NavigationLink(destination: ScheduleDetailView(viewModel: viewModel, item: item, userId: authManager.getCurrentUserDisplayName())) {
+                NavigationLink(destination: ScheduleDetailView(viewModel: viewModel, item: item, userId: getCurrentUserDisplayName())) {
                     ScheduleRowView(item: item)
                 }
                 .swipeActions(edge: .trailing) {
@@ -123,60 +167,60 @@ struct ScheduleListView: View {
         }
     }
     
-    private var transactionsToolbarItems: some ToolbarContent {
-        Group {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingAddSheet = true
-                } label: {
-                    Label("Add Entry", systemImage: "plus")
-                }
+    // Fix toolbar content to use ToolbarContentBuilder
+    @ToolbarContentBuilder
+    private var transactionsToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Button {
+                showingAddSheet = true
+            } label: {
+                Label("Add Entry", systemImage: "plus")
             }
-            
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showingUserProfile = true
-                    } label: {
-                        Label("User Profile", systemImage: "person.circle")
-                    }
-                    
-                    // Only show share option in shared mode
-                    if authManager.isUsingSharedData {
-                        Button {
-                            showingShareData = true
-                        } label: {
-                            Label("Invite Others", systemImage: "person.2.fill")
-                        }
-                    }
+        }
+        
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Menu {
+                Button {
+                    showingUserProfile = true
                 } label: {
-                    Label("More", systemImage: "ellipsis.circle")
+                    Label("User Profile", systemImage: "person.circle")
                 }
+                
+                // Only show share option in shared mode
+                if isUsingSharedData && isAdmin {
+                    Button {
+                        showingShareData = true
+                    } label: {
+                        Label("Invite Others", systemImage: "person.2.fill")
+                    }
+                }
+            } label: {
+                Label("More", systemImage: "ellipsis.circle")
             }
         }
     }
     
-    private var userProfileToolbarItems: some ToolbarContent {
-        Group {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Menu {
-                    Button {
-                        showingUserProfile = true
-                    } label: {
-                        Label("User Profile", systemImage: "person.circle")
-                    }
-                    
-                    // Only show share option in shared mode
-                    if authManager.isUsingSharedData {
-                        Button {
-                            showingShareData = true
-                        } label: {
-                            Label("Invite Others", systemImage: "person.2.fill")
-                        }
-                    }
+    // Fix toolbar content for user profile using ToolbarContentBuilder
+    @ToolbarContentBuilder
+    private var userProfileToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Menu {
+                Button {
+                    showingUserProfile = true
                 } label: {
-                    Label("More", systemImage: "ellipsis.circle")
+                    Label("User Profile", systemImage: "person.circle")
                 }
+                
+                // Only show share option in shared mode
+                if isUsingSharedData && isAdmin {
+                    Button {
+                        showingShareData = true
+                    } label: {
+                        Label("Invite Others", systemImage: "person.2.fill")
+                    }
+                }
+            } label: {
+                Label("More", systemImage: "ellipsis.circle")
             }
         }
     }
@@ -240,13 +284,8 @@ struct ErrorWrapper: Identifiable {
 struct ScheduleListView_Previews: PreviewProvider {
     static var previews: some View {
         let viewContext = PersistenceController.shared.container.viewContext
-        
-        // Create mock auth manager for preview
-        let authManager = UserAuthManager.shared
-        
         return ScheduleListView()
             .environment(\.managedObjectContext, viewContext)
-            .environmentObject(authManager)
     }
 }
 #endif

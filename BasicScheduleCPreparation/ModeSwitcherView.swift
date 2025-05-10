@@ -1,11 +1,32 @@
-// ModeSwitcherView.swift - Updated with CloudKit support
+// ModeSwitcherView.swift
 import SwiftUI
 
 struct ModeSwitcherView: View {
-    @EnvironmentObject var authManager: UserAuthManager
+    // Replace EnvironmentObject with State
     @Environment(\.dismiss) private var dismiss
     @State private var showingConfirmation = false
     @State private var wantToUseSharedData = false
+    
+    // Current state of shared data mode
+    private var isUsingSharedData: Bool {
+        UserDefaults.standard.bool(forKey: "isUsingSharedData")
+    }
+    
+    // Check if user is admin
+    private var isAdmin: Bool {
+        // Use reflection to access isAdmin without direct type reference
+        let authManager = AuthAccess.getAuthManager()
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAdmin")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        return false  // Default to false if we can't determine
+    }
     
     var body: some View {
         NavigationStack {
@@ -14,7 +35,7 @@ struct ModeSwitcherView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Toggle("Use Shared Data", isOn: $wantToUseSharedData)
                             .onChange(of: wantToUseSharedData) { _, newValue in
-                                if newValue != authManager.isUsingSharedData {
+                                if newValue != isUsingSharedData {
                                     showingConfirmation = true
                                 }
                             }
@@ -27,16 +48,31 @@ struct ModeSwitcherView: View {
                     }
                 }
                 
+                // Add info about admin setup
+                if wantToUseSharedData && !isAdmin {
+                    Section("Administrator Setup") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("To invite others, you'll need administrator privileges")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("You can set up as an administrator in your User Profile after enabling shared data.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
                 Section("Current Mode") {
                     HStack {
-                        Image(systemName: authManager.isUsingSharedData ? "cloud.fill" : "iphone")
-                            .foregroundColor(authManager.isUsingSharedData ? .blue : .green)
+                        Image(systemName: isUsingSharedData ? "cloud.fill" : "iphone")
+                            .foregroundColor(isUsingSharedData ? .blue : .green)
                         
                         VStack(alignment: .leading) {
-                            Text(authManager.isUsingSharedData ? "Shared Data" : "Standalone (Local)")
+                            Text(isUsingSharedData ? "Shared Data" : "Standalone (Local)")
                                 .font(.headline)
                             
-                            Text(authManager.isUsingSharedData ?
+                            Text(isUsingSharedData ?
                                 "Your data is synced to iCloud and can be shared." :
                                 "Your data is stored only on this device.")
                                 .font(.caption)
@@ -45,9 +81,9 @@ struct ModeSwitcherView: View {
                     }
                 }
                 
-                if !authManager.isUsingSharedData {
+                if !isUsingSharedData {
                     Section("Join Shared Data") {
-                        NavigationLink(destination: EnterInvitationView()) {
+                        NavigationLink(destination: SimpleInvitationView()) {
                             HStack {
                                 Image(systemName: "person.badge.key")
                                 Text("Enter Invitation Code")
@@ -78,22 +114,15 @@ struct ModeSwitcherView: View {
             }
             .onAppear {
                 // Initialize the toggle with the current value
-                wantToUseSharedData = authManager.isUsingSharedData
+                wantToUseSharedData = isUsingSharedData
             }
             .alert(wantToUseSharedData ? "Switch to Shared Mode?" : "Switch to Standalone Mode?", isPresented: $showingConfirmation) {
                 Button("Cancel", role: .cancel) {
                     // Reset the toggle to the current value
-                    wantToUseSharedData = authManager.isUsingSharedData
+                    wantToUseSharedData = isUsingSharedData
                 }
                 Button("Switch") {
-                    if wantToUseSharedData {
-                        // If user wants shared mode but doesn't have authentication,
-                        // this will trigger the login screen
-                        authManager.toggleDataSharingMode(useSharedData: true)
-                    } else {
-                        // Switch to standalone mode
-                        authManager.toggleDataSharingMode(useSharedData: false)
-                    }
+                    toggleDataSharingMode(useShared: wantToUseSharedData)
                 }
             } message: {
                 Text(wantToUseSharedData ?
@@ -102,11 +131,55 @@ struct ModeSwitcherView: View {
             }
         }
     }
+    
+    // Helper to toggle data sharing mode
+    private func toggleDataSharingMode(useShared: Bool) {
+        // Update UserDefaults
+        UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
+        
+        if useShared {
+            // Check if authenticated
+            let isAuthenticated = isUserAuthenticated()
+            if !isAuthenticated {
+                // Need to sign in
+                AuthAccess.signInWithApple()
+            }
+            
+            // Switch to shared store
+            PersistenceController.shared.switchToSharedStore()
+        } else {
+            // Switch to local store
+            PersistenceController.shared.switchToLocalStore()
+        }
+        
+        // Force UI update
+        wantToUseSharedData = useShared
+        
+        // Notify about data mode change
+        NotificationCenter.default.post(name: Notification.Name("DataSharingModeChanged"), object: nil)
+    }
+    
+    // Helper to check if user is authenticated
+    private func isUserAuthenticated() -> Bool {
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAuthenticated")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        
+        // Default to checking UserDefaults
+        return UserDefaults.standard.bool(forKey: "isAuthenticated")
+    }
 }
 
-// View for entering an invitation code
-struct EnterInvitationView: View {
-    @EnvironmentObject var authManager: UserAuthManager
+// Simplified invitation view that doesn't depend on UserAuthManager
+struct SimpleInvitationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var invitationCode = ""
     @State private var isValidating = false
@@ -114,59 +187,93 @@ struct EnterInvitationView: View {
     @State private var errorMessage = ""
     
     var body: some View {
-        Form {
-            Section("Enter Invitation Code") {
-                TextField("Invitation Code", text: $invitationCode)
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.characters)
-                    .disableAutocorrection(true)
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
-                    .onChange(of: invitationCode) { _, newValue in
-                        invitationCode = newValue.uppercased()
+        NavigationStack {
+            VStack(spacing: 30) {
+                // Code entry
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Invitation Code")
+                        .font(.headline)
+                    
+                    HStack {
+                        TextField("Enter 6-character code", text: $invitationCode)
+                            .textFieldStyle(.roundedBorder)
+                            .textInputAutocapitalization(.characters)
+                            .disableAutocorrection(true)
+                            .font(.system(size: 18, weight: .bold, design: .monospaced))
+                            .onChange(of: invitationCode) { _, newValue in
+                                invitationCode = newValue.uppercased()
+                            }
                     }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+                .padding(.horizontal)
                 
+                // Submit button
                 Button {
                     validateInvitationCode()
                 } label: {
                     if isValidating {
                         ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding()
                     } else {
                         Text("Join Shared Data")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
                     }
                 }
                 .disabled(invitationCode.count != 6 || isValidating)
+                .padding(.horizontal)
+                
+                Spacer()
             }
-            
-            Section("Information") {
-                Text("Enter the 6-character invitation code that was shared with you to access shared data. You'll need to sign in with your Apple ID after entering a valid code.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            .padding(.top, 60)
+            .navigationTitle("Join Shared Data")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
             }
-        }
-        .navigationTitle("Join Shared Data")
-        .alert("Error", isPresented: $showingError) {
-            Button("OK") { }
-        } message: {
-            Text(errorMessage)
+            .alert("Error", isPresented: $showingError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
     private func validateInvitationCode() {
         isValidating = true
         
-        // First ensure the user is authenticated
-        if !authManager.isAuthenticated {
-            authManager.signInWithApple()
+        // Check if authenticated
+        let isAuthenticated = isUserAuthenticated()
+        if !isAuthenticated {
+            // Sign in with Apple
+            AuthAccess.signInWithApple()
             isValidating = false
             return
         }
         
-        // Then validate the code
-        authManager.acceptInvitation(code: invitationCode) { success, message in
+        // Accept invitation using CloudKit directly
+        CloudKitManager.shared.acceptInvitation(code: invitationCode) { success, message in
             isValidating = false
             
             if success {
-                // Code accepted, navigate back
+                // Mark that we're using shared data
+                UserDefaults.standard.set(true, forKey: "isUsingSharedData")
+                
+                // Switch to shared store
+                PersistenceController.shared.switchToSharedStore()
+                
+                // Successfully joined, dismiss the sheet
                 dismiss()
             } else {
                 errorMessage = message ?? "Invalid invitation code"
@@ -174,13 +281,31 @@ struct EnterInvitationView: View {
             }
         }
     }
+    
+    // Helper to check if user is authenticated
+    private func isUserAuthenticated() -> Bool {
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("isAuthenticated")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let boolValue = result?.takeUnretainedValue() as? Bool {
+                    return boolValue
+                }
+            }
+        }
+        
+        // Default to checking UserDefaults
+        return UserDefaults.standard.bool(forKey: "isAuthenticated")
+    }
 }
 
+// Preview provider
 #if DEBUG
 struct ModeSwitcherView_Previews: PreviewProvider {
     static var previews: some View {
         ModeSwitcherView()
-            .environmentObject(UserAuthManager.shared)
     }
 }
 #endif
