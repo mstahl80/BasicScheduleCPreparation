@@ -1,4 +1,4 @@
-// ScheduleListView.swift
+// ScheduleListView.swift - Fixed deletion functionality
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -24,6 +24,7 @@ struct ScheduleListView: View {
     @State private var showingShareData = false
     @State private var searchText = ""
     @State private var selectedTab = 0
+    @State private var itemToDelete: Schedule? = nil
     
     @EnvironmentObject var authManager: UserAuthManager
     
@@ -60,7 +61,7 @@ struct ScheduleListView: View {
             .tag(1)
         }
         .sheet(isPresented: $showingAddSheet) {
-            ScheduleFormView(viewModel: viewModel, userId: authManager.currentUser?.displayName ?? getPlatformUserIdentifier(), editingItem: nil)
+            ScheduleFormView(viewModel: viewModel, userId: authManager.getCurrentUserDisplayName(), editingItem: nil)
         }
         .sheet(isPresented: $showingUserProfile) {
             UserProfileView()
@@ -93,13 +94,21 @@ struct ScheduleListView: View {
     private var listContent: some View {
         List {
             ForEach(filteredItems) { item in
-                NavigationLink(destination: ScheduleDetailView(viewModel: viewModel, item: item, userId: authManager.currentUser?.displayName ?? getPlatformUserIdentifier())) {
+                NavigationLink(destination: ScheduleDetailView(viewModel: viewModel, item: item, userId: authManager.getCurrentUserDisplayName())) {
                     ScheduleRowView(item: item)
                 }
             }
+            // Fixed: Use SwiftUI's built-in onDelete handling
             .onDelete { indexSet in
-                for index in indexSet {
-                    viewModel.deleteScheduleItem(filteredItems[index])
+                // Find the items to delete
+                let itemsToDelete = indexSet.map { filteredItems[$0] }
+                
+                // Delete each item
+                for item in itemsToDelete {
+                    // Important: Access the method correctly
+                    withAnimation {
+                        viewModel.deleteScheduleItem(item)
+                    }
                 }
             }
         }
@@ -123,10 +132,13 @@ struct ScheduleListView: View {
                         Label("User Profile", systemImage: "person.circle")
                     }
                     
-                    Button {
-                        showingShareData = true
-                    } label: {
-                        Label("Share with Others", systemImage: "person.2.fill")
+                    // Only show share option in shared mode
+                    if authManager.isUsingSharedData {
+                        Button {
+                            showingShareData = true
+                        } label: {
+                            Label("Invite Others", systemImage: "person.2.fill")
+                        }
                     }
                 } label: {
                     Label("More", systemImage: "ellipsis.circle")
@@ -145,10 +157,13 @@ struct ScheduleListView: View {
                         Label("User Profile", systemImage: "person.circle")
                     }
                     
-                    Button {
-                        showingShareData = true
-                    } label: {
-                        Label("Share with Others", systemImage: "person.2.fill")
+                    // Only show share option in shared mode
+                    if authManager.isUsingSharedData {
+                        Button {
+                            showingShareData = true
+                        } label: {
+                            Label("Invite Others", systemImage: "person.2.fill")
+                        }
                     }
                 } label: {
                     Label("More", systemImage: "ellipsis.circle")

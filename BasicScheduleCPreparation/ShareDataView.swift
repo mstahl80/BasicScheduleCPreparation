@@ -1,55 +1,86 @@
 // ShareDataView.swift
 import SwiftUI
-import CloudKit
 
 struct ShareDataView: View {
     @State private var email = ""
-    @State private var isSharing = false
-    @State private var sharingResult: (success: Bool, error: Error?)? = nil
+    @State private var isGeneratingCode = false
+    @State private var generatedCode: String? = nil
+    @State private var errorMessage: String? = nil
     @Environment(\.dismiss) private var dismiss
+    @State private var showShareSheet = false
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Invite User") {
+                Section("Generate Invitation Code") {
                     TextField("Email Address", text: $email)
                         .keyboardType(.emailAddress)
                         .autocapitalization(.none)
                         .autocorrectionDisabled(true)
                     
                     Button {
-                        shareData()
+                        generateInvitationCode()
                     } label: {
-                        if isSharing {
+                        if isGeneratingCode {
                             ProgressView()
                         } else {
-                            Text("Send Invitation")
+                            Text("Generate Code")
                         }
                     }
-                    .disabled(email.isEmpty || isSharing)
+                    .disabled(email.isEmpty || isGeneratingCode)
                 }
                 
-                if let result = sharingResult {
-                    Section {
-                        if result.success {
+                if let code = generatedCode {
+                    Section("Invitation Code") {
+                        VStack(alignment: .center, spacing: 12) {
+                            Text("Share this code with your recipient:")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text(code)
+                                .font(.system(size: 24, weight: .bold, design: .monospaced))
+                                .padding()
+                                .background(Color(.systemGray6))
+                                .cornerRadius(8)
+                            
                             HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Invitation sent successfully!")
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.red)
-                                Text("Failed to send invitation: \(result.error?.localizedDescription ?? "Unknown error")")
-                                    .foregroundColor(.red)
+                                Button {
+                                    // Copy to clipboard
+                                    #if os(iOS)
+                                    UIPasteboard.general.string = code
+                                    #elseif os(macOS)
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(code, forType: .string)
+                                    #endif
+                                } label: {
+                                    Label("Copy", systemImage: "doc.on.doc")
+                                }
+                                .buttonStyle(.borderless)
+                                
+                                #if os(iOS)
+                                Button {
+                                    showShareSheet = true
+                                } label: {
+                                    Label("Share", systemImage: "square.and.arrow.up")
+                                }
+                                .buttonStyle(.borderless)
+                                #endif
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                if let error = errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
                     }
                 }
                 
                 Section("Information") {
-                    Text("The invited user will receive an email with instructions on how to access the shared data. They will need to have this app installed.")
+                    Text("The invited user will need to enter this code when they first launch the app. They will need to have this app installed.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -62,15 +93,48 @@ struct ShareDataView: View {
                     }
                 }
             }
+            #if os(iOS)
+            .sheet(isPresented: $showShareSheet) {
+                if let code = generatedCode {
+                    ShareSheet(items: ["Your invitation code for BasicScheduleCPreparation: \(code)"])
+                }
+            }
+            #endif
         }
     }
     
-    private func shareData() {
-        isSharing = true
+    private func generateInvitationCode() {
+        guard !email.isEmpty else { return }
         
-        PersistenceController.shared.shareWithUser(email: email) { success, error in
-            isSharing = false
-            sharingResult = (success, error)
+        isGeneratingCode = true
+        errorMessage = nil
+        
+        PersistenceController.shared.generateInvitationCode(forEmail: email) { code, error in
+            isGeneratingCode = false
+            
+            if let error = error {
+                errorMessage = error.localizedDescription
+            } else if let code = code {
+                generatedCode = code
+            } else {
+                errorMessage = "Failed to generate invitation code."
+            }
         }
     }
 }
+
+#if os(iOS)
+// Share sheet for iOS
+struct ShareSheet: UIViewControllerRepresentable {
+    var items: [Any]
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
+        // Nothing to update
+    }
+}
+#endif

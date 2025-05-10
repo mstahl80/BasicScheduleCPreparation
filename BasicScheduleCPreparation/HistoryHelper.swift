@@ -1,4 +1,4 @@
-// HistoryHelper.swift - Updated to use lowercase "scheduleId"
+// HistoryHelper.swift - Consolidated history tracking implementation
 import Foundation
 import CoreData
 
@@ -17,6 +17,7 @@ struct HistoryEntry: Identifiable {
 }
 
 class HistoryHelper {
+    // Record a change in history
     static func recordChange(
         in context: NSManagedObjectContext,
         scheduleId: UUID,
@@ -29,9 +30,9 @@ class HistoryHelper {
         let entityDescription = NSEntityDescription.entity(forEntityName: "ScheduleHistory", in: context)!
         let historyItem = NSManagedObject(entity: entityDescription, insertInto: context)
         
-        // Set values using key-value coding - with correct lowercase "id"
+        // Set values using key-value coding
         historyItem.setValue(UUID(), forKey: "id")
-        historyItem.setValue(scheduleId, forKey: "scheduleId") // Updated to lowercase "id"
+        historyItem.setValue(scheduleId, forKey: "scheduleId")
         historyItem.setValue(Date(), forKey: "timestamp")
         historyItem.setValue(fieldName, forKey: "fieldName")
         historyItem.setValue(oldValue, forKey: "oldValue")
@@ -47,24 +48,16 @@ class HistoryHelper {
         }
     }
     
+    // Fetch history records for an item
     static func fetchHistory(for itemId: UUID, in context: NSManagedObjectContext) -> [HistoryEntry] {
         let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "ScheduleHistory")
-        fetchRequest.predicate = NSPredicate(format: "scheduleId == %@", itemId as CVarArg) // Updated to lowercase "id"
+        fetchRequest.predicate = NSPredicate(format: "scheduleId == %@", itemId as CVarArg)
         
         do {
             let historyItems = try context.fetch(fetchRequest)
             print("Fetched \(historyItems.count) history items for \(itemId)")
             
-            // Debug print to see what's being fetched
-            for item in historyItems {
-                let field = item.value(forKey: "fieldName") as? String ?? "unknown"
-                let old = item.value(forKey: "oldValue") as? String ?? "unknown"
-                let new = item.value(forKey: "newValue") as? String ?? "unknown"
-                let time = item.value(forKey: "timestamp") as? Date ?? Date()
-                let timeStr = time.formatted()
-                print("History record from \(timeStr): \(field) changed from '\(old)' to '\(new)'")
-            }
-            
+            // Sort by timestamp (newest first)
             let sortedItems = historyItems.sorted {
                 let date1 = $0.value(forKey: "timestamp") as? Date ?? Date.distantPast
                 let date2 = $1.value(forKey: "timestamp") as? Date ?? Date.distantPast
@@ -109,6 +102,7 @@ class HistoryHelper {
         }
     }
     
+    // Create a history record from a group of managed objects
     private static func createHistoryRecord(from items: [NSManagedObject]) -> HistoryEntry? {
         guard let firstItem = items.first else { return nil }
         

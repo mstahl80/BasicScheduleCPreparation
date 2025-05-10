@@ -8,14 +8,24 @@ struct BasicScheduleCPreparationApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if authManager.isAuthenticated {
-                // Main app
-                ScheduleListView()
-                    .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                    .environmentObject(authManager)
+            // Check if we're using a shared or standalone mode
+            if authManager.isUsingSharedData {
+                // For shared data access, require authentication
+                if authManager.isAuthenticated {
+                    // Authenticated main app with shared data
+                    ScheduleListView()
+                        .environment(\.managedObjectContext, persistenceController.sharedContainer.viewContext)
+                        .environmentObject(authManager)
+                } else {
+                    // Login screen for shared data access
+                    LoginView()
+                        .environmentObject(authManager)
+                }
             } else {
-                // Login screen
-                LoginView()
+                // Standalone mode - go straight to app with local data
+                ScheduleListView()
+                    .environment(\.managedObjectContext, persistenceController.localContainer.viewContext)
+                    .environmentObject(authManager)
             }
         }
     }

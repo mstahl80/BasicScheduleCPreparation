@@ -1,4 +1,4 @@
-// Updated UserAuthManager implementation for better Sign in with Apple handling
+// UserAuthManager.swift
 import Foundation
 import AuthenticationServices
 import SwiftUI
@@ -6,7 +6,9 @@ import SwiftUI
 class UserAuthManager: NSObject, ObservableObject {
     @Published var currentUser: User?
     @Published var isAuthenticated = false
+    @Published var isUsingSharedData = false
     @Published var authError: Error?
+    @Published var invitationCode: String = ""
     
     static let shared = UserAuthManager()
     
@@ -35,8 +37,9 @@ class UserAuthManager: NSObject, ObservableObject {
     
     private override init() {
         super.init()
-        // Check for existing user in UserDefaults
+        // Check for existing authentication and mode
         checkExistingAuth()
+        checkDataSharingMode()
     }
     
     private func checkExistingAuth() {
@@ -46,6 +49,11 @@ class UserAuthManager: NSObject, ObservableObject {
             self.currentUser = user
             self.isAuthenticated = true
         }
+    }
+    
+    private func checkDataSharingMode() {
+        // Check if user has previously opted into shared data mode
+        self.isUsingSharedData = UserDefaults.standard.bool(forKey: "isUsingSharedData")
     }
     
     // Set context provider for proper presentation
@@ -82,6 +90,84 @@ class UserAuthManager: NSObject, ObservableObject {
         
         // Notify any listeners that the user has changed
         NotificationCenter.default.post(name: Notification.Name("UserDidChange"), object: nil)
+    }
+    
+    // Toggle between standalone and shared data modes
+    func toggleDataSharingMode(useSharedData: Bool) {
+        self.isUsingSharedData = useSharedData
+        UserDefaults.standard.set(useSharedData, forKey: "isUsingSharedData")
+        
+        // If turning off shared mode, make sure we're using the local store
+        if !useSharedData {
+            PersistenceController.shared.switchToLocalStore()
+        } else {
+            // If turning on shared mode, we need authentication
+            // We'll handle the container switch after authentication
+            if !isAuthenticated {
+                // We'll show the login screen in the app's body
+                // The shared container will be activated after successful login
+            } else {
+                // Already authenticated, switch to shared store
+                PersistenceController.shared.switchToSharedStore()
+            }
+        }
+        
+        // Notify system of changes
+        NotificationCenter.default.post(name: Notification.Name("DataSharingModeChanged"), object: nil)
+    }
+    
+    // Accept an invitation to access shared data
+    func acceptInvitation(code: String, completion: @escaping (Bool, String?) -> Void) {
+        // Validate invitation code
+        PersistenceController.shared.validateInvitationCode(code) { success, message in
+            if success {
+                // Enable shared data mode
+                self.toggleDataSharingMode(useSharedData: true)
+                
+                // Store the invitation code
+                UserDefaults.standard.set(code, forKey: "acceptedInvitationCode")
+                
+                // If not already authenticated, the UI will show the login screen
+                // Otherwise, we're good to go
+                if self.isAuthenticated {
+                    PersistenceController.shared.switchToSharedStore()
+                }
+            }
+            
+            completion(success, message)
+        }
+    }
+    
+    // Get the current user ID (or a device ID for standalone mode)
+    func getCurrentUserId() -> String {
+        if let user = currentUser {
+            return user.id
+        } else {
+            // Use device ID for standalone mode
+            #if os(iOS)
+            return UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
+            #elseif os(macOS)
+            return ProcessInfo.processInfo.globallyUniqueString
+            #else
+            return UUID().uuidString
+            #endif
+        }
+    }
+    
+    // Get user display name for history records
+    func getCurrentUserDisplayName() -> String {
+        if let user = currentUser {
+            return user.displayName
+        } else {
+            // Use device name for standalone mode
+            #if os(iOS)
+            return UIDevice.current.name
+            #elseif os(macOS)
+            return Host.current().localizedName ?? "Mac User"
+            #else
+            return "Unknown User"
+            #endif
+        }
     }
 }
 
@@ -120,6 +206,11 @@ extension UserAuthManager: ASAuthorizationControllerDelegate {
             DispatchQueue.main.async {
                 self.currentUser = user
                 self.isAuthenticated = true
+                
+                // If using shared data, switch to shared store
+                if self.isUsingSharedData {
+                    PersistenceController.shared.switchToSharedStore()
+                }
                 
                 // Notify any listeners that the user has changed
                 NotificationCenter.default.post(name: Notification.Name("UserDidChange"), object: nil)
