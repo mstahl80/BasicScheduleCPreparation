@@ -1,4 +1,4 @@
-// ScheduleListView.swift - Fixed deletion functionality
+// ScheduleListView.swift
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -6,6 +6,9 @@ import UIKit
 import AppKit
 #endif
 
+// IMPORTANT: Remove any duplicate ScheduleViewModel class definition from this file!
+
+// Helper function for device IDs
 func getPlatformUserIdentifier() -> String {
     #if os(iOS)
     return UIDevice.current.identifierForVendor?.uuidString ?? "unknown-ios-user"
@@ -19,11 +22,11 @@ func getPlatformUserIdentifier() -> String {
 struct ScheduleListView: View {
     @StateObject private var viewModel = ScheduleViewModel()
     @State private var showingAddSheet = false
-    @State private var showingSummary = false
     @State private var showingUserProfile = false
     @State private var showingShareData = false
     @State private var searchText = ""
     @State private var selectedTab = 0
+    @State private var showingDeleteConfirm = false
     @State private var itemToDelete: Schedule? = nil
     
     @EnvironmentObject var authManager: UserAuthManager
@@ -77,6 +80,17 @@ struct ScheduleListView: View {
                 ProgressView()
             }
         }
+        .alert("Delete Transaction", isPresented: $showingDeleteConfirm) {
+            Button("Cancel", role: .cancel) { itemToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let item = itemToDelete {
+                    viewModel.deleteScheduleItem(item)
+                }
+                itemToDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this transaction? This action cannot be undone.")
+        }
         .alert(item: errorBinding) { errorWrapper in
             Alert(
                 title: Text("Error"),
@@ -97,17 +111,12 @@ struct ScheduleListView: View {
                 NavigationLink(destination: ScheduleDetailView(viewModel: viewModel, item: item, userId: authManager.getCurrentUserDisplayName())) {
                     ScheduleRowView(item: item)
                 }
-            }
-            // Fixed: Use SwiftUI's built-in onDelete handling
-            .onDelete { indexSet in
-                // Find the items to delete
-                let itemsToDelete = indexSet.map { filteredItems[$0] }
-                
-                // Delete each item
-                for item in itemsToDelete {
-                    // Important: Access the method correctly
-                    withAnimation {
-                        viewModel.deleteScheduleItem(item)
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        itemToDelete = item
+                        showingDeleteConfirm = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
                     }
                 }
             }
@@ -227,7 +236,7 @@ struct ErrorWrapper: Identifiable {
     let error: String
 }
 
-// MARK: - Preview
+#if DEBUG
 struct ScheduleListView_Previews: PreviewProvider {
     static var previews: some View {
         let viewContext = PersistenceController.shared.container.viewContext
@@ -240,3 +249,4 @@ struct ScheduleListView_Previews: PreviewProvider {
             .environmentObject(authManager)
     }
 }
+#endif

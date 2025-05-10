@@ -1,16 +1,18 @@
-// PhotoPicker.swift - Updated with the new onChange API
+// PhotoPicker.swift - Updated with camera support
 import SwiftUI
 import PhotosUI
-#if os(macOS)
-import AppKit
-#else
+#if os(iOS)
 import UIKit
+#else
+import AppKit
 #endif
 
 struct PhotoPicker: View {
     @Binding var selectedPhotoURL: String?
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImageData: Data?
+    @State private var isShowingCamera = false
+    @State private var sourceType: UIImagePickerController.SourceType = .photoLibrary
     
     var body: some View {
         VStack {
@@ -30,10 +32,33 @@ struct PhotoPicker: View {
                     )
             }
             
+            #if os(iOS)
+            HStack(spacing: 20) {
+                PhotosPicker(selection: $selectedItem, matching: .images) {
+                    Label("Gallery", systemImage: "photo")
+                }
+                .onChange(of: selectedItem) { _, newValue in
+                    Task {
+                        if let data = try? await newValue?.loadTransferable(type: Data.self) {
+                            selectedImageData = data
+                            saveImageToDocuments(imageData: data)
+                        }
+                    }
+                }
+                
+                Button {
+                    isShowingCamera = true
+                } label: {
+                    Label("Camera", systemImage: "camera")
+                }
+                .sheet(isPresented: $isShowingCamera) {
+                    CameraView(selectedPhotoURL: $selectedPhotoURL)
+                }
+            }
+            #else
             PhotosPicker(selection: $selectedItem, matching: .images) {
                 Label("Select Receipt", systemImage: "photo")
             }
-            // Updated onChange for newer SwiftUI versions
             .onChange(of: selectedItem) { _, newValue in
                 Task {
                     if let data = try? await newValue?.loadTransferable(type: Data.self) {
@@ -42,6 +67,7 @@ struct PhotoPicker: View {
                     }
                 }
             }
+            #endif
             
             if selectedPhotoURL != nil {
                 Button(role: .destructive) {
@@ -77,7 +103,59 @@ struct PhotoPicker: View {
     }
 }
 
-// Extension to create an Image from Data
+#if os(iOS)
+// Camera view using UIImagePickerController
+struct CameraView: UIViewControllerRepresentable {
+    @Binding var selectedPhotoURL: String?
+    @Environment(\.presentationMode) private var presentationMode
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: CameraView
+        
+        init(_ parent: CameraView) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let image = info[.originalImage] as? UIImage, let data = image.jpegData(compressionQuality: 0.8) {
+                saveImageToDocuments(imageData: data)
+            }
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        private func saveImageToDocuments(imageData: Data) {
+            let fileName = "\(UUID().uuidString).jpg"
+            let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(fileName)
+            
+            do {
+                try imageData.write(to: fileURL)
+                parent.selectedPhotoURL = fileURL.absoluteString
+            } catch {
+                print("Error saving image: \(error)")
+            }
+        }
+    }
+}
+#endif
+
+// Extension to create an Image from Data (unchanged)
 extension Image {
     init?(data: Data) {
         #if os(macOS)

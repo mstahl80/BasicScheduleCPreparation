@@ -1,4 +1,4 @@
-// ModeSwitcherView.swift
+// ModeSwitcherView.swift - Updated with CloudKit support
 import SwiftUI
 
 struct ModeSwitcherView: View {
@@ -20,7 +20,7 @@ struct ModeSwitcherView: View {
                             }
                         
                         Text(wantToUseSharedData ?
-                            "Your data will be stored in the cloud and can be shared with others." :
+                            "Your data will be stored in iCloud and can be shared with others." :
                             "Your data will be stored only on this device and won't be shared.")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -37,7 +37,7 @@ struct ModeSwitcherView: View {
                                 .font(.headline)
                             
                             Text(authManager.isUsingSharedData ?
-                                "Your data is synced to the cloud and can be shared." :
+                                "Your data is synced to iCloud and can be shared." :
                                 "Your data is stored only on this device.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -45,18 +45,27 @@ struct ModeSwitcherView: View {
                     }
                 }
                 
-                if authManager.isUsingSharedData {
-                    Section("Sharing Information") {
-                        Text("You're currently using shared data. Switching to standalone mode will use a different local database.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Section("Invitation Code") {
+                if !authManager.isUsingSharedData {
+                    Section("Join Shared Data") {
                         NavigationLink(destination: EnterInvitationView()) {
-                            Text("Enter Invitation Code")
+                            HStack {
+                                Image(systemName: "person.badge.key")
+                                Text("Enter Invitation Code")
+                            }
                         }
                     }
+                }
+                
+                Section("Information") {
+                    Text("Switching to shared mode requires an Apple ID and allows you to share data between your devices and with other users. Your data will be stored in iCloud.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 4)
+                    
+                    Text("Switching to standalone mode keeps all data on this device only, with no sync or sharing capabilities.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.vertical, 4)
                 }
             }
             .navigationTitle("Data Mode")
@@ -88,7 +97,7 @@ struct ModeSwitcherView: View {
                 }
             } message: {
                 Text(wantToUseSharedData ?
-                    "Your data will be synchronized with the cloud. You'll need to sign in with your Apple ID." :
+                    "Your data will be synchronized with iCloud. You'll need to sign in with your Apple ID." :
                     "Your data will be stored only on this device. Any shared data will no longer be accessible.")
             }
         }
@@ -145,6 +154,14 @@ struct EnterInvitationView: View {
     private func validateInvitationCode() {
         isValidating = true
         
+        // First ensure the user is authenticated
+        if !authManager.isAuthenticated {
+            authManager.signInWithApple()
+            isValidating = false
+            return
+        }
+        
+        // Then validate the code
         authManager.acceptInvitation(code: invitationCode) { success, message in
             isValidating = false
             

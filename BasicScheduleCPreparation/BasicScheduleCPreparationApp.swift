@@ -5,28 +5,54 @@ import SwiftUI
 struct BasicScheduleCPreparationApp: App {
     let persistenceController = PersistenceController.shared
     @StateObject private var authManager = UserAuthManager.shared
+    @State private var databaseReady = false
     
     var body: some Scene {
         WindowGroup {
-            // Check if we're using a shared or standalone mode
-            if authManager.isUsingSharedData {
-                // For shared data access, require authentication
-                if authManager.isAuthenticated {
-                    // Authenticated main app with shared data
-                    ScheduleListView()
-                        .environment(\.managedObjectContext, persistenceController.sharedContainer.viewContext)
-                        .environmentObject(authManager)
+            ZStack {
+                // Main app content
+                if databaseReady {
+                    mainContent
                 } else {
-                    // Login screen for shared data access
-                    LoginView()
-                        .environmentObject(authManager)
+                    // Loading screen while database initializes
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Initializing database...")
+                            .padding()
+                    }
                 }
-            } else {
-                // Standalone mode - go straight to app with local data
+            }
+            .onAppear {
+                // Give Core Data a moment to initialize
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    databaseReady = true
+                }
+            }
+        }
+    }
+    
+    // Main content based on auth state and data sharing mode
+    @ViewBuilder
+    var mainContent: some View {
+        // Check if we're using a shared or standalone mode
+        if authManager.isUsingSharedData {
+            // For shared data access, require authentication
+            if authManager.isAuthenticated {
+                // Authenticated main app with shared data
                 ScheduleListView()
-                    .environment(\.managedObjectContext, persistenceController.localContainer.viewContext)
+                    .environment(\.managedObjectContext, persistenceController.sharedContainer.viewContext)
+                    .environmentObject(authManager)
+            } else {
+                // Login screen for shared data access
+                LoginView()
                     .environmentObject(authManager)
             }
+        } else {
+            // Standalone mode - go straight to app with local data
+            ScheduleListView()
+                .environment(\.managedObjectContext, persistenceController.localContainer.viewContext)
+                .environmentObject(authManager)
         }
     }
 }

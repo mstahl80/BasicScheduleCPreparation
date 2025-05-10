@@ -1,4 +1,4 @@
-// UserAuthManager.swift
+// UserAuthManager.swift - Update with CloudKit integration
 import Foundation
 import AuthenticationServices
 import SwiftUI
@@ -8,7 +8,7 @@ class UserAuthManager: NSObject, ObservableObject {
     @Published var isAuthenticated = false
     @Published var isUsingSharedData = false
     @Published var authError: Error?
-    @Published var invitationCode: String = ""
+    @Published var userRole: CloudKitManager.UserPermissionRecord.UserRole?
     
     static let shared = UserAuthManager()
     
@@ -34,6 +34,7 @@ class UserAuthManager: NSObject, ObservableObject {
     
     // Store the presentation context provider for later use
     private weak var contextProvider: ASAuthorizationControllerPresentationContextProviding?
+    private let cloudKitManager = CloudKitManager.shared
     
     private override init() {
         super.init()
@@ -48,6 +49,9 @@ class UserAuthManager: NSObject, ObservableObject {
            let user = try? JSONDecoder().decode(User.self, from: userData) {
             self.currentUser = user
             self.isAuthenticated = true
+            
+            // Fetch user role
+            fetchUserRole()
         }
     }
     
@@ -87,6 +91,7 @@ class UserAuthManager: NSObject, ObservableObject {
         UserDefaults.standard.removeObject(forKey: "currentUser")
         self.currentUser = nil
         self.isAuthenticated = false
+        self.userRole = nil
         
         // Notify any listeners that the user has changed
         NotificationCenter.default.post(name: Notification.Name("UserDidChange"), object: nil)
@@ -109,6 +114,9 @@ class UserAuthManager: NSObject, ObservableObject {
             } else {
                 // Already authenticated, switch to shared store
                 PersistenceController.shared.switchToSharedStore()
+                
+                // Fetch user role
+                fetchUserRole()
             }
         }
         
@@ -116,22 +124,25 @@ class UserAuthManager: NSObject, ObservableObject {
         NotificationCenter.default.post(name: Notification.Name("DataSharingModeChanged"), object: nil)
     }
     
-    // Accept an invitation to access shared data
+    // Accept an invitation to access shared data using CloudKit
     func acceptInvitation(code: String, completion: @escaping (Bool, String?) -> Void) {
-        // Validate invitation code
-        PersistenceController.shared.validateInvitationCode(code) { success, message in
+        guard isAuthenticated else {
+            completion(false, "You must sign in with your Apple ID first.")
+            return
+        }
+        
+        // Validate and accept invitation via CloudKit
+        cloudKitManager.acceptInvitation(code: code) { success, message in
             if success {
-                // Enable shared data mode
-                self.toggleDataSharingMode(useSharedData: true)
+                // Mark that we're using shared data
+                self.isUsingSharedData = true
+                UserDefaults.standard.set(true, forKey: "isUsingSharedData")
                 
-                // Store the invitation code
-                UserDefaults.standard.set(code, forKey: "acceptedInvitationCode")
+                // Switch to shared store
+                PersistenceController.shared.switchToSharedStore()
                 
-                // If not already authenticated, the UI will show the login screen
-                // Otherwise, we're good to go
-                if self.isAuthenticated {
-                    PersistenceController.shared.switchToSharedStore()
-                }
+                // Fetch user role after accepting invitation
+                self.fetchUserRole()
             }
             
             completion(success, message)
@@ -167,6 +178,26 @@ class UserAuthManager: NSObject, ObservableObject {
             #else
             return "Unknown User"
             #endif
+        }
+    }
+    
+    // Check if user is an admin
+    func isAdmin() -> Bool {
+        return userRole == .admin
+    }
+    
+    // Fetch user role from CloudKit
+    private func fetchUserRole() {
+        guard isUsingSharedData && isAuthenticated else {
+            // Not using shared data or not authenticated, so no role
+            userRole = nil
+            return
+        }
+        
+        cloudKitManager.checkUserAccessLevel { role in
+            DispatchQueue.main.async {
+                self.userRole = role
+            }
         }
     }
 }
@@ -210,6 +241,9 @@ extension UserAuthManager: ASAuthorizationControllerDelegate {
                 // If using shared data, switch to shared store
                 if self.isUsingSharedData {
                     PersistenceController.shared.switchToSharedStore()
+                    
+                    // Fetch user role
+                    self.fetchUserRole()
                 }
                 
                 // Notify any listeners that the user has changed

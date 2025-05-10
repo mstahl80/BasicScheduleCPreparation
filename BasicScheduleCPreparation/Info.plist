@@ -2,9 +2,47 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
+    <!-- Required background modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
+    
+    <!-- CloudKit configuration -->
+    <key>NSUbiquitousContainerName</key>
+    <string>BasicScheduleCPreparation</string>
+    
+    <key>NSUbiquitousContainers</key>
+    <dict>
+        <key>iCloud.com.matthewstahl.BasicScheduleCPreparation</key>
+        <dict>
+            <key>NSUbiquitousContainerIsDocumentScopePublic</key>
+            <true/>
+            <key>NSUbiquitousContainerName</key>
+            <string>BasicScheduleCPreparation</string>
+            <key>NSUbiquitousContainerSupportedFolderLevels</key>
+            <string>Any</string>
+        </dict>
+    </dict>
+    
+    <!-- User permission requests -->
+    <key>NSCameraUsageDescription</key>
+    <string>We need camera access to capture receipts for your expenses</string>
+    
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>We need photo library access to add receipts to your expenses</string>
+    
+    <!-- Supporting multiple platforms -->
+    <key>UIApplicationSceneManifest</key>
+    <dict>
+        <key>UIApplicationSupportsMultipleScenes</key>
+        <true/>
+        <key>UISceneConfigurations</key>
+        <dict/>
+    </dict>
+    
+    <!-- App appearance -->
+    <key>UILaunchScreen</key>
+    <dict/>
 </dict>
 </plist>

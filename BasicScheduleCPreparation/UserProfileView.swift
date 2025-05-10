@@ -1,10 +1,13 @@
-// UserProfileView.swift
+// UserProfileView.swift - Updated with CloudKit Admin View
 import SwiftUI
 
 struct UserProfileView: View {
     @EnvironmentObject var authManager: UserAuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var showingSignOutConfirmation = false
+    @State private var showingResetConfirmation = false
+    @State private var showingSuccess = false
+    @State private var successMessage = ""
     
     var body: some View {
         NavigationStack {
@@ -18,6 +21,10 @@ struct UserProfileView: View {
                             
                             if let email = user.email {
                                 LabeledContent("Email", value: email)
+                            }
+                            
+                            if let role = authManager.userRole {
+                                LabeledContent("Role", value: roleText(for: role))
                             }
                         }
                     } else {
@@ -54,6 +61,16 @@ struct UserProfileView: View {
                                 Text("Invite Others")
                             }
                         }
+                        
+                        // Admin panel - only show if user is admin
+                        if authManager.isAdmin() {
+                            NavigationLink(destination: AdminView()) {
+                                HStack {
+                                    Image(systemName: "person.2.badge.key.fill")
+                                    Text("Manage Access")
+                                }
+                            }
+                        }
                     }
                 }
                 
@@ -69,6 +86,45 @@ struct UserProfileView: View {
                             }
                         }
                     }
+                }
+                
+                // Troubleshooting Section
+                Section("Troubleshooting") {
+                    Button(role: .destructive) {
+                        showingResetConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                            Text("Reset Database")
+                        }
+                    }
+                    
+                    Button {
+                        clearAppCache()
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Clear App Cache")
+                        }
+                    }
+                    
+                    // App information
+                    VStack(alignment: .leading, spacing: 8) {
+                        LabeledContent("App Version", value: getAppVersion())
+                        LabeledContent("Build Number", value: getBuildNumber())
+                        LabeledContent("Data Mode", value: authManager.isUsingSharedData ? "Shared (CloudKit)" : "Standalone (Local)")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                }
+                
+                // App Credits
+                Section("About") {
+                    LabeledContent("Developer", value: "Matthew Stahl")
+                    LabeledContent("Copyright", value: "© 2025 Matthew Stahl")
+                    Text("BasicScheduleCPreparation is designed to help freelancers and small business owners track income and expenses for tax purposes.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("User Profile")
@@ -87,15 +143,179 @@ struct UserProfileView: View {
             } message: {
                 Text("Are you sure you want to sign out? You'll need to sign in again to access your shared data.")
             }
+            .alert("Reset Database?", isPresented: $showingResetConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Reset", role: .destructive) {
+                    resetCoreDataStores()
+                }
+            } message: {
+                Text("This will delete all data and reset the app. This action cannot be undone.")
+            }
+            .alert("Success", isPresented: $showingSuccess) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(successMessage)
+            }
         }
     }
-}
-
-#if DEBUG
-struct UserProfileView_Previews: PreviewProvider {
-    static var previews: some View {
-        UserProfileView()
-            .environmentObject(UserAuthManager.shared)
+    
+    // Helper methods
+    
+    private func roleText(for role: CloudKitManager.UserPermissionRecord.UserRole) -> String {
+        switch role {
+        case .admin:
+            return "Administrator"
+        case .editor:
+            return "Editor"
+        case .viewer:
+            return "Viewer"
+        }
     }
-}
-#endif
+    
+    private func getAppVersion() -> String {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    }
+    
+    private func getBuildNumber() -> String {
+        return Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+    }
+    
+    private func clearAppCache() {
+        // Clear UserDefaults (except critical settings)
+        let defaults = UserDefaults.standard
+        
+        // Save critical values
+        let isUsingSharedData = defaults.bool(forKey: "isUsingSharedData")
+        let currentUserData = defaults.data(forKey: "currentUser")
+        let acceptedInvitationCode = defaults.string(forKey: "acceptedInvitationCode")
+        
+        // Clear all UserDefaults
+        if let bundleIdentifier = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: bundleIdentifier)
+        }
+        
+        // Restore critical values
+        defaults.set(isUsingSharedData, forKey: "isUsingSharedData")
+        if let userData = currentUserData {
+            defaults.set(userData, forKey: "currentUser")
+        }
+        if let code = acceptedInvitationCode {
+            defaults.set(code, forKey: "acceptedInvitationCode")
+        }
+        
+        // Clear any temporary files
+        let fileManager = FileManager.default
+        let tempDirectoryURL = fileManager.temporaryDirectory
+        
+        do {
+            let tempFiles = try fileManager.contentsOfDirectory(at: tempDirectoryURL, includingPropertiesForKeys: nil)
+            for file in tempFiles {
+                try fileManager.removeItem(at: file)
+            }
+            
+            // Also clear the caches directory
+            if let cachesURL = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
+                let cacheFiles = try fileManager.contentsOfDirectory(at: cachesURL, includingPropertiesForKeys: nil)
+                for file in cacheFiles {
+                    try fileManager.removeItem(at: file)
+                }
+            }
+            
+            // Show success message
+            successMessage = "Cache cleared successfully"
+            showingSuccess = true
+        } catch {
+            print("Failed to clear cache: \(error)")
+            successMessage = "Error clearing cache: \(error.localizedDescription)"
+            showingSuccess = true
+        }
+    }
+    
+    private func resetCoreDataStores() {
+        // Get URLs for the Core Data stores
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        
+        // Better naming to match PersistenceController URLs
+        let localStoreURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_local.sqlite")
+        let sharedStoreURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_shared.sqlite")
+        
+        // Also handle the default name that might be used
+        let defaultStoreURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation.sqlite")
+        
+        var success = true
+        var errorMessages: [String] = []
+        
+        // Try to delete the local store
+        if fileManager.fileExists(atPath: localStoreURL.path) {
+            do {
+                try fileManager.removeItem(at: localStoreURL)
+                print("Successfully deleted local store")
+                            } catch {
+                                success = false
+                                errorMessages.append("Failed to delete local store: \(error.localizedDescription)")
+                                print("Failed to delete local store: \(error)")
+                            }
+                        }
+                        
+                        // Try to delete the shared store
+                        if fileManager.fileExists(atPath: sharedStoreURL.path) {
+                            do {
+                                try fileManager.removeItem(at: sharedStoreURL)
+                                print("Successfully deleted shared store")
+                            } catch {
+                                success = false
+                                errorMessages.append("Failed to delete shared store: \(error.localizedDescription)")
+                                print("Failed to delete shared store: \(error)")
+                            }
+                        }
+                        
+                        // Try to delete the default store if it exists
+                        if fileManager.fileExists(atPath: defaultStoreURL.path) {
+                            do {
+                                try fileManager.removeItem(at: defaultStoreURL)
+                                print("Successfully deleted default store")
+                            } catch {
+                                success = false
+                                errorMessages.append("Failed to delete default store: \(error.localizedDescription)")
+                                print("Failed to delete default store: \(error)")
+                            }
+                        }
+                        
+                        // Delete related files (shm, wal, etc.)
+                        let suffixes = ["-shm", "-wal"]
+                        for suffix in suffixes {
+                            let localSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_local.sqlite\(suffix)")
+                            let sharedSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation_shared.sqlite\(suffix)")
+                            let defaultSuffixURL = documentsURL.appendingPathComponent("BasicScheduleCPreparation.sqlite\(suffix)")
+                            
+                            try? fileManager.removeItem(at: localSuffixURL)
+                            try? fileManager.removeItem(at: sharedSuffixURL)
+                            try? fileManager.removeItem(at: defaultSuffixURL)
+                        }
+                        
+                        if success {
+                            successMessage = "Database reset successfully. The app will now restart."
+                            showingSuccess = true
+                            
+                            // Allow the success message to be shown before restarting
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                // In a real app, prompt the user to restart manually
+                                // For development, we can force an exit
+                                exit(0)
+                            }
+                        } else {
+                            successMessage = "Database reset had errors: \(errorMessages.joined(separator: ", "))"
+                            showingSuccess = true
+                        }
+                    }
+                }
+
+                #if DEBUG
+                struct UserProfileView_Previews: PreviewProvider {
+                    static var previews: some View {
+                        UserProfileView()
+                            .environmentObject(UserAuthManager.shared)
+                    }
+                }
+                #endif
