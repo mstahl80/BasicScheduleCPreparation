@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23788" systemVersion="24E263" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithCloudKit="YES" userDefinedModelVersionIdentifier="">
+    <entity name="Business" representedClassName="Business" syncable="YES" codeGenerationType="class">
+        <attribute name="businessType" optional="YES" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="createdBy" optional="YES" attributeType="String"/>
+        <attribute name="id" optional="YES" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isActive" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+    </entity>
     <entity name="Schedule" representedClassName="Schedule" syncable="YES" codeGenerationType="class">
         <attribute name="amount" optional="YES" attributeType="Decimal" defaultValueString="0.0"/>
+        <attribute name="businessId" optional="YES" attributeType="Transformable" valueTransformerName="NSSecureUnarchiveFromDataTransformer" customClassName="NSUUID"/>
+        <attribute name="businessName" optional="YES" attributeType="String"/>
         <attribute name="category" optional="YES" attributeType="String"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="createdBy" optional="YES" attributeType="String"/>
@@ -12,6 +22,7 @@
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="photoURL" optional="YES" attributeType="String"/>
         <attribute name="store" optional="YES" attributeType="String"/>
+        <attribute name="transactionType" optional="YES" attributeType="String"/>
     </entity>
     <entity name="ScheduleHistory" representedClassName="ScheduleHistory" syncable="YES" codeGenerationType="class">
         <attribute name="fieldName" optional="YES" attributeType="String"/>

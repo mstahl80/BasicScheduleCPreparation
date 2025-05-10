@@ -82,7 +82,7 @@ class CloudKitManager: ObservableObject {
         notificationInfo.shouldSendContentAvailable = true
         invitationSubscription.notificationInfo = notificationInfo
         
-        privateDatabase.save(invitationSubscription) { (savedSubscription: CKSubscription?, error: Error?) in
+        privateDatabase.save(invitationSubscription) { (_, error: Error?) in
             if let error = error {
                 print("Failed to create invitation subscription: \(error)")
             } else {
@@ -104,7 +104,7 @@ class CloudKitManager: ObservableObject {
         
         permissionSubscription.notificationInfo = notificationInfo
         
-        privateDatabase.save(permissionSubscription) { (savedSubscription: CKSubscription?, error: Error?) in
+        privateDatabase.save(permissionSubscription) { (_, error: Error?) in
             if let error = error {
                 print("Failed to create permission subscription: \(error)")
             } else {
@@ -145,7 +145,7 @@ class CloudKitManager: ObservableObject {
                 return
             }
             
-            guard let recordID = recordID else {
+            guard let _ = recordID else {
                 completion("Unknown User", NSError(domain: "CloudKitManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "No user record ID"]))
                 return
             }
@@ -178,7 +178,7 @@ class CloudKitManager: ObservableObject {
         record["creator"] = creatorName
             
         // Save the record
-        self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+        self.privateDatabase.save(record) { (_, error: Error?) in
             DispatchQueue.main.async {
                 self.isLoading = false
                 
@@ -281,7 +281,7 @@ class CloudKitManager: ObservableObject {
                 fetchedInvitations.append(invitation)
             }
             
-            operation.queryCompletionBlock = { [weak self] (cursor: CKQueryOperation.Cursor?, error: Error?) in
+            operation.queryCompletionBlock = { [weak self] (_, error: Error?) in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     self.isLoading = false
@@ -300,7 +300,7 @@ class CloudKitManager: ObservableObject {
     }
     
     func deleteInvitation(_ invitation: InvitationRecord, completion: @escaping (Error?) -> Void) {
-        privateDatabase.delete(withRecordID: invitation.id) { (recordID: CKRecord.ID?, error: Error?) in
+        privateDatabase.delete(withRecordID: invitation.id) { (_, error: Error?) in
             DispatchQueue.main.async {
                 if let error = error {
                     self.errorMessage = error.localizedDescription
@@ -368,7 +368,7 @@ class CloudKitManager: ObservableObject {
                         return
                     }
                     
-                    if let record = records?.first {
+                    if let _ = records?.first {
                         // Invitation exists and is pending
                         completion(true, nil)
                     } else {
@@ -403,7 +403,7 @@ class CloudKitManager: ObservableObject {
                 
                 switch result {
                 case .success(let (matchResults, _)):
-                    guard let recordID = matchResults.first?.0,
+                    guard let _ = matchResults.first?.0,
                           let record = try? matchResults.first?.1.get() else {
                         DispatchQueue.main.async {
                             completion(false, "Invalid invitation code or already used.")
@@ -418,7 +418,7 @@ class CloudKitManager: ObservableObject {
                     record["acceptedBy"] = userName
                     record["acceptedDate"] = Date()
                     
-                    self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+                    self.privateDatabase.save(record) { (_, error: Error?) in
                         if let error = error {
                             DispatchQueue.main.async {
                                 completion(false, error.localizedDescription)
@@ -437,7 +437,7 @@ class CloudKitManager: ObservableObject {
                             
                             // Get the assigned role from the invitation
                             let roleString = record["role"] as? String ?? "editor"
-                            let role = UserPermissionRecord.UserRole(rawValue: roleString) ?? .editor
+                            // No need to convert to enum since we're just using the string
                             
                             let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
                             permissionRecord["userId"] = recordID.recordName
@@ -447,7 +447,7 @@ class CloudKitManager: ObservableObject {
                             permissionRecord["invitationCode"] = code
                             permissionRecord["addedDate"] = Date()
                             
-                            self.privateDatabase.save(permissionRecord) { (savedPermission: CKRecord?, error: Error?) in
+                            self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
                                 DispatchQueue.main.async {
                                     if let error = error {
                                         completion(false, error.localizedDescription)
@@ -499,7 +499,7 @@ class CloudKitManager: ObservableObject {
                 record["acceptedBy"] = userName
                 record["acceptedDate"] = Date()
                 
-                self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+                self.privateDatabase.save(record) { (_, error: Error?) in
                     if let error = error {
                         DispatchQueue.main.async {
                             completion(false, error.localizedDescription)
@@ -518,7 +518,7 @@ class CloudKitManager: ObservableObject {
                         
                         // Get the assigned role from the invitation
                         let roleString = record["role"] as? String ?? "editor"
-                        let role = UserPermissionRecord.UserRole(rawValue: roleString) ?? .editor
+                        // No need to convert to enum since we're just using the string
                         
                         let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
                         permissionRecord["userId"] = recordID.recordName
@@ -528,7 +528,7 @@ class CloudKitManager: ObservableObject {
                         permissionRecord["invitationCode"] = code
                         permissionRecord["addedDate"] = Date()
                         
-                        self.privateDatabase.save(permissionRecord) { (savedPermission: CKRecord?, error: Error?) in
+                        self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
                             DispatchQueue.main.async {
                                 if let error = error {
                                     completion(false, error.localizedDescription)
@@ -573,7 +573,7 @@ class CloudKitManager: ObservableObject {
                             permissionRecord["role"] = "admin"
                             permissionRecord["addedDate"] = Date()
                             
-                            self.privateDatabase.save(permissionRecord) { (savedRecord: CKRecord?, error: Error?) in
+                            self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
                                 // Refresh permissions
                                 self.fetchUserPermissions()
                             }
@@ -595,7 +595,7 @@ class CloudKitManager: ObservableObject {
                         permissionRecord["role"] = "admin"
                         permissionRecord["addedDate"] = Date()
                         
-                        self.privateDatabase.save(permissionRecord) { (savedRecord: CKRecord?, error: Error?) in
+                        self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
                             // Refresh permissions
                             self.fetchUserPermissions()
                         }
@@ -680,7 +680,7 @@ class CloudKitManager: ObservableObject {
                 fetchedPermissions.append(permission)
             }
             
-            operation.queryCompletionBlock = { [weak self] (cursor: CKQueryOperation.Cursor?, error: Error?) in
+            operation.queryCompletionBlock = { [weak self] (_, error: Error?) in
                 DispatchQueue.main.async {
                     guard let self = self else { return }
                     
@@ -698,7 +698,7 @@ class CloudKitManager: ObservableObject {
     }
     
     func revokeAccess(_ permission: UserPermissionRecord, completion: @escaping (Error?) -> Void) {
-        privateDatabase.delete(withRecordID: permission.id) { (recordID: CKRecord.ID?, error: Error?) in
+        privateDatabase.delete(withRecordID: permission.id) { (_, error: Error?) in
             DispatchQueue.main.async {
                 if let error = error {
                     self.errorMessage = error.localizedDescription
@@ -718,10 +718,10 @@ class CloudKitManager: ObservableObject {
                             self.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
                                 switch result {
                                 case .success(let (matchResults, _)):
-                                    if let recordID = matchResults.first?.0,
+                                    if let _ = matchResults.first?.0,
                                        var record = try? matchResults.first?.1.get() {
                                         record["status"] = "revoked"
-                                        self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+                                        self.privateDatabase.save(record) { (_, error: Error?) in
                                             // Update local invitations
                                             self.fetchInvitations()
                                         }
@@ -737,7 +737,7 @@ class CloudKitManager: ObservableObject {
                             self.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
                                 if let record = records?.first {
                                     record["status"] = "revoked"
-                                    self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+                                    self.privateDatabase.save(record) { (_, error: Error?) in
                                         // Update local invitations
                                         self.fetchInvitations()
                                     }
@@ -773,308 +773,308 @@ class CloudKitManager: ObservableObject {
             
             record["role"] = newRole.rawValue as String // Explicit cast to String
             
-            self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
-                            DispatchQueue.main.async {
-                                if let error = error {
-                                    self.errorMessage = error.localizedDescription
-                                    completion(error)
-                                } else {
-                                    // Update local permissions
-                                    if let index = self.permissions.firstIndex(where: { $0.id == permission.id }) {
-                                        var updatedPermission = self.permissions[index]
-                                        // Create a new instance with the updated role (since it's a struct)
-                                        updatedPermission = UserPermissionRecord(
-                                            id: updatedPermission.id,
-                                            userId: updatedPermission.userId,
-                                            userName: updatedPermission.userName,
-                                            email: updatedPermission.email,
-                                            role: newRole,
-                                            invitationCode: updatedPermission.invitationCode,
-                                            addedDate: updatedPermission.addedDate
-                                        )
-                                        self.permissions[index] = updatedPermission
-                                    }
-                                    
-                                    completion(nil)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // MARK: - Admin Management
-                
-                func makeCurrentUserAdmin(completion: @escaping (Bool, String?) -> Void) {
-                    container.fetchUserRecordID { (recordID: CKRecord.ID?, error: Error?) in
-                        guard let recordID = recordID else {
-                            DispatchQueue.main.async {
-                                completion(false, "Could not get user ID")
-                            }
-                            return
-                        }
-                        
-                        let userName = self.getCurrentUserName()
-                        
-                        // First check if this user already has a permission record
-                        let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
-                        let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
-                        
-                        if #available(iOS 15.0, macOS 12.0, *) {
-                            self.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
-                                switch result {
-                                case .success(let (matchResults, _)):
-                                    if let recordID = matchResults.first?.0,
-                                       var existingRecord = try? matchResults.first?.1.get() {
-                                        // Update existing record to admin role
-                                        existingRecord["role"] = "admin" as String
-                                        
-                                        self.privateDatabase.save(existingRecord) { (savedRecord: CKRecord?, error: Error?) in
-                                            DispatchQueue.main.async {
-                                                if let error = error {
-                                                    completion(false, error.localizedDescription)
-                                                } else {
-                                                    // Refresh permissions
-                                                    self.fetchUserPermissions()
-                                                    completion(true, nil)
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        // Create new admin permission record
-                                        let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
-                                        permissionRecord["userId"] = recordID.recordName
-                                        permissionRecord["userName"] = userName
-                                        permissionRecord["role"] = "admin" as String
-                                        permissionRecord["addedDate"] = Date()
-                                        
-                                        self.privateDatabase.save(permissionRecord) { (savedRecord: CKRecord?, error: Error?) in
-                                            DispatchQueue.main.async {
-                                                if let error = error {
-                                                    completion(false, error.localizedDescription)
-                                                } else {
-                                                    // Refresh permissions
-                                                    self.fetchUserPermissions()
-                                                    completion(true, nil)
-                                                }
-                                            }
-                                        }
-                                    }
-                                case .failure(let error):
-                                    DispatchQueue.main.async {
-                                        completion(false, error.localizedDescription)
-                                    }
-                                }
-                            }
-                        } else {
-                            // Fallback for older iOS versions
-                            self.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
-                                if let record = records?.first {
-                                    // Update existing record to admin role
-                                    record["role"] = "admin" as String
-                                    
-                                    self.privateDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
-                                        DispatchQueue.main.async {
-                                            if let error = error {
-                                                completion(false, error.localizedDescription)
-                                            } else {
-                                                // Refresh permissions
-                                                self.fetchUserPermissions()
-                                                completion(true, nil)
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    // Create new admin permission record
-                                    let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
-                                    permissionRecord["userId"] = recordID.recordName
-                                    permissionRecord["userName"] = userName
-                                    permissionRecord["role"] = "admin" as String
-                                    permissionRecord["addedDate"] = Date()
-                                    
-                                    self.privateDatabase.save(permissionRecord) { (savedRecord: CKRecord?, error: Error?) in
-                                        DispatchQueue.main.async {
-                                            if let error = error {
-                                                completion(false, error.localizedDescription)
-                                            } else {
-                                                // Refresh permissions
-                                                self.fetchUserPermissions()
-                                                completion(true, nil)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                func checkIfAdminExists(completion: @escaping (Bool) -> Void) {
-                    let query = CKQuery(recordType: userPermissionRecordType, predicate: NSPredicate(format: "role == %@", "admin"))
-                    
-                    if #available(iOS 15.0, macOS 12.0, *) {
-                        privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
-                            switch result {
-                            case .success(let (matchResults, _)):
-                                DispatchQueue.main.async {
-                                    completion(!matchResults.isEmpty)
-                                }
-                            case .failure(_):
-                                DispatchQueue.main.async {
-                                    completion(false)
-                                }
-                            }
-                        }
+            self.privateDatabase.save(record) { (_, error: Error?) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.errorMessage = error.localizedDescription
+                        completion(error)
                     } else {
-                        privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, _) in
-                            DispatchQueue.main.async {
-                                completion(!(records?.isEmpty ?? true))
-                            }
-                        }
-                    }
-                }
-                
-                // MARK: - Data Sharing
-                
-                func setupCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
-                    #if os(iOS)
-                    if #available(iOS 15.0, macOS 12.0, *) {
-                        // iOS 15+ implementation using newer APIs
-                        setupModernCloudKitSharing(completion: completion)
-                    } else {
-                        // Fallback for older iOS versions
-                        setupLegacyCloudKitSharing(completion: completion)
-                    }
-                    #else
-                    // Non-iOS platforms use the legacy approach
-                    setupLegacyCloudKitSharing(completion: completion)
-                    #endif
-                }
-
-                // Implementation for iOS 15+ and macOS 12+
-                @available(iOS 15.0, macOS 12.0, *)
-                private func setupModernCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
-                    // Create a CKShare directly
-                    let share = CKShare(recordZoneID: CKRecordZone.ID(zoneName: "com.matthewstahl.scheduleC", ownerName: CKCurrentUserDefaultName))
-                    share.publicPermission = .readWrite
-                    
-                    // Set up share metadata
-                    share[CKShare.SystemFieldKey.title] = "Schedule C Shared Data" as CKRecordValue
-                    
-                    // Save the share
-                    container.privateCloudDatabase.save(share) { (savedRecord: CKRecord?, error: Error?) in
-                        DispatchQueue.main.async {
-                            if let error = error {
-                                completion(nil, error)
-                            } else if let savedShare = savedRecord as? CKShare {
-                                completion(savedShare, nil)
-                            } else {
-                                let error = NSError(domain: "CloudKitManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create share"])
-                                completion(nil, error)
-                            }
-                        }
-                    }
-                }
-
-                // Legacy implementation for older iOS versions
-                private func setupLegacyCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
-                    // Create a record to share
-                    let recordID = CKRecord.ID(recordName: "SharedScheduleCData")
-                    let record = CKRecord(recordType: "SharedData", recordID: recordID)
-                    record["title"] = "Schedule C Shared Data" as CKRecordValue
-                    record["creator"] = self.getCurrentUserName() as CKRecordValue
-                    
-                    // Save the record first
-                    container.privateCloudDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
-                        if let error = error {
-                            DispatchQueue.main.async {
-                                completion(nil, error)
-                            }
-                            return
+                        // Update local permissions
+                        if let index = self.permissions.firstIndex(where: { $0.id == permission.id }) {
+                            var updatedPermission = self.permissions[index]
+                            // Create a new instance with the updated role (since it's a struct)
+                            updatedPermission = UserPermissionRecord(
+                                id: updatedPermission.id,
+                                userId: updatedPermission.userId,
+                                userName: updatedPermission.userName,
+                                email: updatedPermission.email,
+                                role: newRole,
+                                invitationCode: updatedPermission.invitationCode,
+                                addedDate: updatedPermission.addedDate
+                            )
+                            self.permissions[index] = updatedPermission
                         }
                         
-                        guard let savedRecord = savedRecord else {
-                            let error = NSError(domain: "CloudKitManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to save record"])
-                            DispatchQueue.main.async {
-                                completion(nil, error)
-                            }
-                            return
-                        }
-                        
-                        // Now create a share for the record
-                        let share = CKShare(rootRecord: savedRecord)
-                        share.publicPermission = .readWrite
-                        
-                        // Save the share
-                        self.container.privateCloudDatabase.save(share) { (savedShare: CKRecord?, error: Error?) in
-                            DispatchQueue.main.async {
-                                if let error = error {
-                                    completion(nil, error)
-                                } else if let savedShare = savedShare as? CKShare {
-                                    completion(savedShare, nil)
-                                } else {
-                                    let error = NSError(domain: "CloudKitManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create share"])
-                                    completion(nil, error)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // MARK: - User Status
-                
-                func checkUserAccessLevel(completion: @escaping (UserPermissionRecord.UserRole?) -> Void) {
-                    container.fetchUserRecordID { (recordID: CKRecord.ID?, error: Error?) in
-                        guard let recordID = recordID else {
-                            DispatchQueue.main.async {
-                                completion(nil)
-                            }
-                            return
-                        }
-                        
-                        let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
-                        
-                        if #available(iOS 15.0, macOS 12.0, *) {
-                            // Use the newer API for iOS 15+
-                            let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
-                            
-                            self.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
-                                DispatchQueue.main.async {
-                                    switch result {
-                                    case .success(let (matchResults, _)):
-                                        if let record = try? matchResults.first?.1.get(),
-                                           let roleString = record["role"] as? String,
-                                           let role = UserPermissionRecord.UserRole(rawValue: roleString) {
-                                            completion(role)
-                                        } else {
-                                            completion(nil)
-                                        }
-                                    case .failure(_):
-                                        completion(nil)
-                                    }
-                                }
-                            }
-                        } else {
-                            // Fallback for older iOS versions
-                            let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
-                            
-                            self.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
-                                DispatchQueue.main.async {
-                                    if let record = records?.first,
-                                       let roleString = record["role"] as? String,
-                                       let role = UserPermissionRecord.UserRole(rawValue: roleString) {
-                                        completion(role)
-                                    } else {
-                                        completion(nil)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                func isUserAdmin(completion: @escaping (Bool) -> Void) {
-                    checkUserAccessLevel { role in
-                        completion(role == .admin)
+                        completion(nil)
                     }
                 }
             }
+        }
+    }
+    
+    // MARK: - Admin Management
+    
+    func makeCurrentUserAdmin(completion: @escaping (Bool, String?) -> Void) {
+        container.fetchUserRecordID { (recordID: CKRecord.ID?, error: Error?) in
+            guard let recordID = recordID else {
+                DispatchQueue.main.async {
+                    completion(false, "Could not get user ID")
+                }
+                return
+            }
+            
+            let userName = self.getCurrentUserName()
+            
+            // First check if this user already has a permission record
+            let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
+            let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
+            
+            if #available(iOS 15.0, macOS 12.0, *) {
+                self.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+                    switch result {
+                    case .success(let (matchResults, _)):
+                        if let _ = matchResults.first?.0,
+                           let existingRecord = try? matchResults.first?.1.get() {
+                            // Update existing record to admin role
+                            existingRecord["role"] = "admin" as String
+                            
+                            self.privateDatabase.save(existingRecord) { (_, error: Error?) in
+                                DispatchQueue.main.async {
+                                    if let error = error {
+                                        completion(false, error.localizedDescription)
+                                    } else {
+                                        // Refresh permissions
+                                        self.fetchUserPermissions()
+                                        completion(true, nil)
+                                    }
+                                }
+                            }
+                        } else {
+                            // Create new admin permission record
+                            let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
+                            permissionRecord["userId"] = recordID.recordName
+                            permissionRecord["userName"] = userName
+                            permissionRecord["role"] = "admin" as String
+                            permissionRecord["addedDate"] = Date()
+                            
+                            self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
+                                DispatchQueue.main.async {
+                                    if let error = error {
+                                        completion(false, error.localizedDescription)
+                                    } else {
+                                        // Refresh permissions
+                                        self.fetchUserPermissions()
+                                        completion(true, nil)
+                                    }
+                                }
+                            }
+                        }
+                    case .failure(let error):
+                        DispatchQueue.main.async {
+                            completion(false, error.localizedDescription)
+                        }
+                    }
+                }
+            } else {
+                // Fallback for older iOS versions
+                self.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
+                    if let record = records?.first {
+                        // Update existing record to admin role
+                        record["role"] = "admin" as String
+                        
+                        self.privateDatabase.save(record) { (_, error: Error?) in
+                            DispatchQueue.main.async {
+                                if let error = error {
+                                    completion(false, error.localizedDescription)
+                                } else {
+                                    // Refresh permissions
+                                    self.fetchUserPermissions()
+                                    completion(true, nil)
+                                }
+                            }
+                        }
+                    } else {
+                        // Create new admin permission record
+                        let permissionRecord = CKRecord(recordType: self.userPermissionRecordType)
+                        permissionRecord["userId"] = recordID.recordName
+                        permissionRecord["userName"] = userName
+                        permissionRecord["role"] = "admin" as String
+                        permissionRecord["addedDate"] = Date()
+                        
+                        self.privateDatabase.save(permissionRecord) { (_, error: Error?) in
+                            DispatchQueue.main.async {
+                                if let error = error {
+                                    completion(false, error.localizedDescription)
+                                } else {
+                                    // Refresh permissions
+                                    self.fetchUserPermissions()
+                                    completion(true, nil)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    func checkIfAdminExists(completion: @escaping (Bool) -> Void) {
+        let query = CKQuery(recordType: userPermissionRecordType, predicate: NSPredicate(format: "role == %@", "admin"))
+        
+        if #available(iOS 15.0, macOS 12.0, *) {
+            privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    DispatchQueue.main.async {
+                        completion(!matchResults.isEmpty)
+                    }
+                case .failure(_):
+                    DispatchQueue.main.async {
+                        completion(false)
+                    }
+                }
+            }
+        } else {
+            privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, _) in
+                DispatchQueue.main.async {
+                    completion(!(records?.isEmpty ?? true))
+                }
+            }
+        }
+    }
+    
+    // MARK: - Data Sharing
+    
+    func setupCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
+        #if os(iOS)
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // iOS 15+ implementation using newer APIs
+            setupModernCloudKitSharing(completion: completion)
+        } else {
+            // Fallback for older iOS versions
+            setupLegacyCloudKitSharing(completion: completion)
+        }
+        #else
+        // Non-iOS platforms use the legacy approach
+        setupLegacyCloudKitSharing(completion: completion)
+        #endif
+    }
+
+    // Implementation for iOS 15+ and macOS 12+
+    @available(iOS 15.0, macOS 12.0, *)
+    private func setupModernCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
+        // Create a CKShare directly
+        let share = CKShare(recordZoneID: CKRecordZone.ID(zoneName: "com.matthewstahl.scheduleC", ownerName: CKCurrentUserDefaultName))
+        share.publicPermission = .readWrite
+        
+        // Set up share metadata
+        share[CKShare.SystemFieldKey.title] = "Schedule C Shared Data" as CKRecordValue
+        
+        // Save the share
+        container.privateCloudDatabase.save(share) { (savedRecord: CKRecord?, error: Error?) in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(nil, error)
+                } else if let savedShare = savedRecord as? CKShare {
+                    completion(savedShare, nil)
+                } else {
+                    let error = NSError(domain: "CloudKitManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to create share"])
+                    completion(nil, error)
+                }
+            }
+        }
+    }
+
+    // Legacy implementation for older iOS versions
+    private func setupLegacyCloudKitSharing(completion: @escaping (CKShare?, Error?) -> Void) {
+        // Create a record to share
+        let recordID = CKRecord.ID(recordName: "SharedScheduleCData")
+        let record = CKRecord(recordType: "SharedData", recordID: recordID)
+        record["title"] = "Schedule C Shared Data" as CKRecordValue
+        record["creator"] = self.getCurrentUserName() as CKRecordValue
+        
+        // Save the record first
+        container.privateCloudDatabase.save(record) { (savedRecord: CKRecord?, error: Error?) in
+            if let error = error {
+                DispatchQueue.main.async {
+                    completion(nil, error)
+                }
+                return
+            }
+            
+            guard let savedRecord = savedRecord else {
+                let error = NSError(domain: "CloudKitManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to save record"])
+                DispatchQueue.main.async {
+                    completion(nil, error)
+                }
+                return
+            }
+            
+            // Now create a share for the record
+            let share = CKShare(rootRecord: savedRecord)
+            share.publicPermission = .readWrite
+            
+            // Save the share
+            self.container.privateCloudDatabase.save(share) { (savedShare: CKRecord?, error: Error?) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        completion(nil, error)
+                    } else if let savedShare = savedShare as? CKShare {
+                        completion(savedShare, nil)
+                    } else {
+                        let error = NSError(domain: "CloudKitManager", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create share"])
+                        completion(nil, error)
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - User Status
+    
+    func checkUserAccessLevel(completion: @escaping (UserPermissionRecord.UserRole?) -> Void) {
+        container.fetchUserRecordID { (recordID: CKRecord.ID?, error: Error?) in
+            guard let recordID = recordID else {
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+            
+            let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
+            
+            if #available(iOS 15.0, macOS 12.0, *) {
+                // Use the newer API for iOS 15+
+                let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
+                
+                self.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success(let (matchResults, _)):
+                            if let record = try? matchResults.first?.1.get(),
+                               let roleString = record["role"] as? String,
+                               let role = UserPermissionRecord.UserRole(rawValue: roleString) {
+                                completion(role)
+                            } else {
+                                completion(nil)
+                            }
+                        case .failure(_):
+                            completion(nil)
+                        }
+                    }
+                }
+            } else {
+                // Fallback for older iOS versions
+                let query = CKQuery(recordType: self.userPermissionRecordType, predicate: predicate)
+                
+                self.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
+                    DispatchQueue.main.async {
+                        if let record = records?.first,
+                           let roleString = record["role"] as? String,
+                           let role = UserPermissionRecord.UserRole(rawValue: roleString) {
+                            completion(role)
+                        } else {
+                            completion(nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    func isUserAdmin(completion: @escaping (Bool) -> Void) {
+        checkUserAccessLevel { role in
+            completion(role == .admin)
+        }
+    }
+}

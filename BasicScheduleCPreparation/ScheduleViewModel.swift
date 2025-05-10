@@ -1,4 +1,4 @@
-// ScheduleViewModel.swift
+// Updated ScheduleViewModel.swift
 import Foundation
 import CoreData
 import SwiftUI
@@ -15,8 +15,8 @@ class ScheduleViewModel: ObservableObject {
         return PersistenceController.shared.container.viewContext
     }
     
-    // Schedule C categories from IRS
-    static let categories = [
+    // Schedule C expense categories from IRS
+    static let expenseCategories = [
         "Advertising",
         "Car and truck expenses",
         "Commissions and fees",
@@ -39,9 +39,20 @@ class ScheduleViewModel: ObservableObject {
         "Meals",
         "Utilities",
         "Wages",
-        "Other expenses",
-        "Gross receipts or sales"
+        "Other expenses"
     ]
+    
+    // Schedule C income categories
+    static let incomeCategories = [
+        "Gross receipts or sales",
+        "Returns and allowances",
+        "Other income"
+    ]
+    
+    // Combined categories for backward compatibility
+    static var categories: [String] {
+        return incomeCategories + expenseCategories
+    }
     
     init() {
         fetchScheduleItems()
@@ -95,6 +106,41 @@ class ScheduleViewModel: ObservableObject {
         }
     }
     
+    // Get items for a specific business
+    func getItemsForBusiness(businessId: UUID) -> [Schedule] {
+        return scheduleItems.filter {
+            if let scheduleBusinessId = ($0.businessId as? NSUUID)?.uuidString {
+                return UUID(uuidString: scheduleBusinessId) == businessId
+            }
+            return false
+        }
+    }
+    
+    // Get total income for a business
+    func getTotalIncomeForBusiness(businessId: UUID) -> Decimal {
+        let businessItems = getItemsForBusiness(businessId: businessId)
+        let incomeItems = businessItems.filter { ($0.transactionType ?? "") == "income" }
+        return incomeItems.reduce(Decimal(0)) { sum, item in
+            sum + (item.amount?.decimalValue ?? Decimal(0))
+        }
+    }
+    
+    // Get total expenses for a business
+    func getTotalExpensesForBusiness(businessId: UUID) -> Decimal {
+        let businessItems = getItemsForBusiness(businessId: businessId)
+        let expenseItems = businessItems.filter { ($0.transactionType ?? "") == "expense" }
+        return expenseItems.reduce(Decimal(0)) { sum, item in
+            sum + (item.amount?.decimalValue ?? Decimal(0))
+        }
+    }
+    
+    // Get profit for a business
+    func getProfitForBusiness(businessId: UUID) -> Decimal {
+        let income = getTotalIncomeForBusiness(businessId: businessId)
+        let expenses = getTotalExpensesForBusiness(businessId: businessId)
+        return income - expenses
+    }
+    
     // Add a new schedule item
     func addScheduleItem(
         date: Date,
@@ -103,19 +149,27 @@ class ScheduleViewModel: ObservableObject {
         category: String,
         notes: String? = nil,
         photoURL: String? = nil,
+        businessId: UUID,
+        businessName: String,
+        transactionType: String,
         userId: String
     ) {
-        // Create a new item using the helper method
-        _ = Schedule.createNewEntry(
-            in: viewContext,
-            date: date,
-            amount: amount,
-            store: store,
-            category: category,
-            notes: notes,
-            photoURL: photoURL,
-            createdBy: userId
-        )
+        // Create a new item
+        let newItem = Schedule(context: viewContext)
+        newItem.id = UUID()
+        newItem.date = date
+        newItem.amount = NSDecimalNumber(decimal: amount)
+        newItem.store = store
+        newItem.category = category
+        newItem.notes = notes
+        newItem.photoURL = photoURL
+        newItem.businessId = businessId as NSUUID
+        newItem.businessName = businessName
+        newItem.transactionType = transactionType
+        newItem.createdAt = Date()
+        newItem.modifiedAt = Date()
+        newItem.createdBy = userId
+        newItem.modifiedBy = userId
         
         // Save the context
         do {
@@ -136,26 +190,35 @@ class ScheduleViewModel: ObservableObject {
         category: String,
         notes: String? = nil,
         photoURL: String? = nil,
+        businessId: UUID,
+        businessName: String,
+        transactionType: String,
         userId: String
     ) {
         // Track changes for history
-        let oldDate = item.wrappedDate
+        let oldDate = item.date ?? Date()
         let oldAmount = item.amount?.decimalValue ?? Decimal(0)
-        let oldStore = item.wrappedStore
-        let oldCategory = item.wrappedCategory
-        let oldNotes = item.wrappedNotes
-        let oldPhotoURL = item.wrappedPhotoURL
+        let oldStore = item.store ?? ""
+        let oldCategory = item.category ?? ""
+        let oldNotes = item.notes ?? ""
+        let oldPhotoURL = item.photoURL ?? ""
+        let oldBusinessIdObj = item.businessId as? NSUUID
+        let oldBusinessId = oldBusinessIdObj != nil ? UUID(uuidString: oldBusinessIdObj!.uuidString) : nil
+        let oldBusinessName = item.businessName ?? ""
+        let oldTransactionType = item.transactionType ?? ""
         
-        // Update the item using the helper method
-        item.update(
-            date: date,
-            amount: amount,
-            store: store,
-            category: category,
-            notes: notes,
-            photoURL: photoURL,
-            modifiedBy: userId
-        )
+        // Update the item
+        item.date = date
+        item.amount = NSDecimalNumber(decimal: amount)
+        item.store = store
+        item.category = category
+        item.notes = notes
+        item.photoURL = photoURL
+        item.businessId = businessId as NSUUID
+        item.businessName = businessName
+        item.transactionType = transactionType
+        item.modifiedAt = Date()
+        item.modifiedBy = userId
         
         // Record history for each changed field
         if oldDate != date {
@@ -163,7 +226,7 @@ class ScheduleViewModel: ObservableObject {
             let newDateString = date.formatted(date: .abbreviated, time: .omitted)
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Date",
                 oldValue: oldDateString,
                 newValue: newDateString,
@@ -176,7 +239,7 @@ class ScheduleViewModel: ObservableObject {
             let newAmountString = amount.formatted(.currency(code: "USD"))
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Amount",
                 oldValue: oldAmountString,
                 newValue: newAmountString,
@@ -187,7 +250,7 @@ class ScheduleViewModel: ObservableObject {
         if oldStore != store {
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Store",
                 oldValue: oldStore,
                 newValue: store,
@@ -198,7 +261,7 @@ class ScheduleViewModel: ObservableObject {
         if oldCategory != category {
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Category",
                 oldValue: oldCategory,
                 newValue: category,
@@ -209,7 +272,7 @@ class ScheduleViewModel: ObservableObject {
         if oldNotes != notes ?? "" {
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Notes",
                 oldValue: oldNotes,
                 newValue: notes ?? "",
@@ -220,10 +283,32 @@ class ScheduleViewModel: ObservableObject {
         if oldPhotoURL != photoURL ?? "" {
             HistoryHelper.recordChange(
                 in: viewContext,
-                scheduleId: item.wrappedId,
+                scheduleId: item.id ?? UUID(),
                 fieldName: "Receipt Photo",
                 oldValue: oldPhotoURL.isEmpty ? "None" : "Photo",
                 newValue: (photoURL ?? "").isEmpty ? "None" : "Photo",
+                modifiedBy: userId
+            )
+        }
+        
+        if oldBusinessId != businessId {
+            HistoryHelper.recordChange(
+                in: viewContext,
+                scheduleId: item.id ?? UUID(),
+                fieldName: "Business",
+                oldValue: oldBusinessName,
+                newValue: businessName,
+                modifiedBy: userId
+            )
+        }
+        
+        if oldTransactionType != transactionType {
+            HistoryHelper.recordChange(
+                in: viewContext,
+                scheduleId: item.id ?? UUID(),
+                fieldName: "Transaction Type",
+                oldValue: oldTransactionType.capitalized,
+                newValue: transactionType.capitalized,
                 modifiedBy: userId
             )
         }
@@ -258,6 +343,60 @@ class ScheduleViewModel: ObservableObject {
     
     // Get current user name
     func getCurrentUserName() -> String {
-        return UserAuthManager.shared.getCurrentUserDisplayName()
+        // Try to access through AuthAccess
+        let authManager = AuthAccess.getAuthManager()
+        
+        if let authObj = authManager as? NSObject {
+            let selector = NSSelectorFromString("getCurrentUserDisplayName")
+            if authObj.responds(to: selector) {
+                let result = authObj.perform(selector)
+                if let name = result?.takeUnretainedValue() as? String {
+                    return name
+                }
+            }
+        }
+        
+        // Fallback to device name
+        #if os(iOS)
+        return UIDevice.current.name
+        #elseif os(macOS)
+        return Host.current().localizedName ?? "Mac User"
+        #else
+        return "Unknown User"
+        #endif
+    }
+    
+    // Helper function to get expense totals by category for a business
+    func getExpenseTotalsByCategory(for businessId: UUID) -> [(category: String, amount: Decimal)] {
+        let businessItems = getItemsForBusiness(businessId: businessId)
+        let expenseItems = businessItems.filter { ($0.transactionType ?? "") == "expense" }
+        
+        var categoryTotals: [String: Decimal] = [:]
+        
+        for item in expenseItems {
+            guard let category = item.category else { continue }
+            let amount = item.amount?.decimalValue ?? Decimal(0)
+            categoryTotals[category, default: Decimal(0)] += amount
+        }
+        
+        return categoryTotals.map { (category: $0.key, amount: $0.value) }
+            .sorted { $0.amount > $1.amount }
+    }
+    
+    // Helper function to get income totals by category for a business
+    func getIncomeTotalsByCategory(for businessId: UUID) -> [(category: String, amount: Decimal)] {
+        let businessItems = getItemsForBusiness(businessId: businessId)
+        let incomeItems = businessItems.filter { ($0.transactionType ?? "") == "income" }
+        
+        var categoryTotals: [String: Decimal] = [:]
+        
+        for item in incomeItems {
+            guard let category = item.category else { continue }
+            let amount = item.amount?.decimalValue ?? Decimal(0)
+            categoryTotals[category, default: Decimal(0)] += amount
+        }
+        
+        return categoryTotals.map { (category: $0.key, amount: $0.value) }
+            .sorted { $0.amount > $1.amount }
     }
 }

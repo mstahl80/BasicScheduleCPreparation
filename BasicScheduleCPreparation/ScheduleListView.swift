@@ -1,4 +1,4 @@
-// ScheduleListView.swift
+// Updated ScheduleListView.swift
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -19,6 +19,7 @@ func getPlatformUserIdentifier() -> String {
 
 struct ScheduleListView: View {
     @StateObject private var viewModel = ScheduleViewModel()
+    @StateObject private var businessViewModel = BusinessViewModel()
     @State private var showingAddSheet = false
     @State private var showingUserProfile = false
     @State private var showingShareData = false
@@ -26,6 +27,12 @@ struct ScheduleListView: View {
     @State private var selectedTab = 0
     @State private var showingDeleteConfirm = false
     @State private var itemToDelete: Schedule? = nil
+    
+    // Business filter
+    @State private var selectedBusinessId: UUID? = nil
+    
+    // Transaction type filter
+    @State private var transactionTypeFilter: String? = nil
     
     // Helper to check if user is admin
     private var isAdmin: Bool {
@@ -80,11 +87,19 @@ struct ScheduleListView: View {
         TabView(selection: $selectedTab) {
             // First tab - Summary View
             NavigationStack {
-                SummaryView(viewModel: viewModel)
+                if businessViewModel.businesses.isEmpty {
+                    noBusinessesView
+                } else {
+                    BusinessSummaryView(
+                        viewModel: viewModel,
+                        businessViewModel: businessViewModel,
+                        selectedBusinessId: $selectedBusinessId
+                    )
                     .navigationTitle("Financial Summary")
                     .toolbar {
                         userProfileToolbarContent
                     }
+                }
             }
             .tabItem {
                 Label("Summary", systemImage: "chart.bar")
@@ -93,15 +108,33 @@ struct ScheduleListView: View {
             
             // Second tab - Transaction List
             NavigationStack {
-                listContent
-                    .navigationTitle("Schedule C Entries")
-                    .toolbar {
-                        transactionsToolbarContent
+                VStack(spacing: 0) {
+                    // Filter bar
+                    filterBar
+                    
+                    // List content
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if filteredItems.isEmpty {
+                        if businessViewModel.businesses.isEmpty {
+                            noBusinessesView
+                        } else {
+                            noTransactionsView
+                        }
+                    } else {
+                        listContent
                     }
-                    .searchable(text: $searchText, prompt: "Search transactions")
-                    .refreshable {
-                        viewModel.fetchScheduleItems()
-                    }
+                }
+                .navigationTitle("Transactions")
+                .toolbar {
+                    transactionsToolbarContent
+                }
+                .searchable(text: $searchText, prompt: "Search transactions")
+                .refreshable {
+                    viewModel.fetchScheduleItems()
+                    businessViewModel.fetchBusinesses()
+                }
             }
             .tabItem {
                 Label("Transactions", systemImage: "list.bullet")
@@ -144,10 +177,43 @@ struct ScheduleListView: View {
         }
         .onAppear {
             viewModel.fetchScheduleItems()
+            businessViewModel.fetchBusinesses()
         }
     }
     
     // MARK: - View Components
+    
+    private var filterBar: some View {
+        VStack(spacing: 0) {
+            HStack {
+                // Business Picker
+                Picker("Business", selection: $selectedBusinessId) {
+                    Text("All Businesses").tag(nil as UUID?)
+                    
+                    ForEach(businessViewModel.businesses, id: \.id) { business in
+                        Text(business.name ?? "").tag(business.id as UUID?)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                
+                Spacer()
+                
+                // Transaction Type Picker
+                Picker("Type", selection: $transactionTypeFilter) {
+                    Text("All").tag(nil as String?)
+                    Text("Income").tag("income")
+                    Text("Expense").tag("expense")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .frame(maxWidth: 200)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(Color(.systemGroupedBackground))
+            
+            Divider()
+        }
+    }
     
     private var listContent: some View {
         List {
@@ -165,6 +231,81 @@ struct ScheduleListView: View {
                 }
             }
         }
+    }
+    
+    private var noBusinessesView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "building.2.crop.circle")
+                .font(.system(size: 60))
+                .foregroundColor(.blue)
+            
+            Text("No Businesses Yet")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text("Start by adding a business to track your income and expenses.")
+                .multilineTextAlignment(.center)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 40)
+            
+            Button {
+                showingAddSheet = true
+            } label: {
+                Label("Add Business", systemImage: "plus.circle.fill")
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .padding(.top, 10)
+        }
+        .padding()
+    }
+    
+    private var noTransactionsView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundColor(.blue)
+            
+            Text("No Transactions")
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            if let selectedBusinessId = selectedBusinessId {
+                // Show message for specific business
+                if let business = businessViewModel.businesses.first(where: { $0.id == selectedBusinessId }) {
+                    Text("No transactions found for \(business.name ?? "this business")")
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 40)
+                }
+            } else if transactionTypeFilter != nil {
+                // Show message for transaction type filter
+                Text("No \(transactionTypeFilter ?? "") transactions found")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 40)
+            } else {
+                // General message
+                Text("Start by adding income or expense transactions")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 40)
+            }
+            
+            Button {
+                showingAddSheet = true
+            } label: {
+                Label("Add Transaction", systemImage: "plus.circle.fill")
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+            }
+            .padding(.top, 10)
+        }
+        .padding()
     }
     
     // Fix toolbar content to use ToolbarContentBuilder
@@ -233,15 +374,36 @@ struct ScheduleListView: View {
     }
     
     var filteredItems: [Schedule] {
-        if searchText.isEmpty {
-            return viewModel.scheduleItems
-        } else {
-            return viewModel.scheduleItems.filter { item in
-                item.wrappedStore.localizedCaseInsensitiveContains(searchText) ||
-                item.wrappedCategory.localizedCaseInsensitiveContains(searchText) ||
-                item.wrappedNotes.localizedCaseInsensitiveContains(searchText)
+        var items = viewModel.scheduleItems
+        
+        // Apply business filter
+        if let businessId = selectedBusinessId {
+            items = items.filter {
+                if let businessIdObj = $0.businessId as? NSUUID {
+                    return UUID(uuidString: businessIdObj.uuidString) == businessId
+                }
+                return false
             }
         }
+        
+        // Apply transaction type filter
+        if let typeFilter = transactionTypeFilter {
+            items = items.filter { ($0.transactionType ?? "") == typeFilter }
+        }
+        
+        // Apply search text filter
+        if !searchText.isEmpty {
+            items = items.filter { item in
+                let storeMatch = (item.store ?? "").localizedCaseInsensitiveContains(searchText)
+                let categoryMatch = (item.category ?? "").localizedCaseInsensitiveContains(searchText)
+                let notesMatch = (item.notes ?? "").localizedCaseInsensitiveContains(searchText)
+                let businessMatch = (item.businessName ?? "").localizedCaseInsensitiveContains(searchText)
+                
+                return storeMatch || categoryMatch || notesMatch || businessMatch
+            }
+        }
+        
+        return items
     }
 }
 
@@ -251,13 +413,40 @@ struct ScheduleRowView: View {
     
     var body: some View {
         HStack {
+            // Transaction type indicator
+            ZStack {
+                Circle()
+                    .fill(item.transactionType == "income" ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: item.transactionType == "income" ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
+                    .foregroundColor(item.transactionType == "income" ? .green : .red)
+                    .font(.system(size: 18))
+            }
+            .padding(.trailing, 8)
+            
             VStack(alignment: .leading) {
-                Text(item.wrappedStore)
+                Text(item.store ?? "")
                     .font(.headline)
                 
-                Text(item.wrappedCategory)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text(item.category ?? "")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    // Business pill
+                    if let businessName = item.businessName, !businessName.isEmpty {
+                        Text(businessName)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(10)
+                    }
+                }
             }
             
             Spacer()
@@ -265,10 +454,10 @@ struct ScheduleRowView: View {
             VStack(alignment: .trailing) {
                 Text(item.amount?.decimalValue ?? Decimal(0), format: .currency(code: "USD"))
                     .font(.headline)
-                    .foregroundStyle(item.wrappedCategory == "Gross receipts or sales" ? .green : .primary)
+                    .foregroundStyle(item.transactionType == "income" ? .green : .primary)
                 
-                Text(item.wrappedDate, format: .dateTime.day().month().year())
-                    .font(.subheadline)
+                Text(item.date ?? Date(), format: .dateTime.day().month().year())
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

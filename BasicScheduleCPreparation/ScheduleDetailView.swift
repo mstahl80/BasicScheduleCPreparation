@@ -1,4 +1,4 @@
-// ScheduleDetailView.swift
+// Complete ScheduleDetailView.swift
 import SwiftUI
 
 struct ScheduleDetailView: View {
@@ -12,35 +12,63 @@ struct ScheduleDetailView: View {
     
     var body: some View {
         List {
-            Section("Transaction Details") {
-                LabeledContent("Date", value: item.wrappedDate, format: .dateTime.day().month().year())
-                LabeledContent("Store", value: item.wrappedStore)
-                LabeledContent("Amount", value: item.amount?.decimalValue ?? Decimal(0), format: .currency(code: "USD"))
-                LabeledContent("Category", value: item.wrappedCategory)
-            }
-            
-            if !item.wrappedNotes.isEmpty {
-                Section("Notes") {
-                    Text(item.wrappedNotes)
+            // Business Information
+            Section("Business Details") {
+                LabeledContent("Business", value: item.businessName ?? "")
+                
+                if let businessType = businessTypeForItem() {
+                    LabeledContent("Business Type", value: businessType)
                 }
             }
             
-            if !item.wrappedPhotoURL.isEmpty, let url = URL(string: item.wrappedPhotoURL) {
+            // Transaction Type
+            Section("Transaction Type") {
+                HStack {
+                    Text((item.transactionType ?? "expense").capitalized)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    transactionTypeIcon
+                }
+            }
+            
+            // Transaction Details
+            Section("Transaction Details") {
+                LabeledContent("Date", value: item.date ?? Date(), format: .dateTime.day().month().year())
+                LabeledContent("Payee/Store", value: item.store ?? "")
+                
+                HStack {
+                    Text("Amount")
+                    Spacer()
+                    Text(item.amount?.decimalValue ?? Decimal(0), format: .currency(code: "USD"))
+                        .foregroundColor(item.transactionType == "income" ? .green : .primary)
+                }
+                
+                LabeledContent("Category", value: item.category ?? "")
+            }
+            
+            if !(item.notes?.isEmpty ?? true) {
+                Section("Notes") {
+                    Text(item.notes ?? "")
+                }
+            }
+            
+            if let photoURL = item.photoURL, !photoURL.isEmpty, let url = URL(string: photoURL) {
                 Section("Receipt") {
                     receiptImage(for: url)
                 }
             }
             
             Section("Record Information") {
-                LabeledContent("Created", value: item.wrappedCreatedAt, format: .dateTime)
-                LabeledContent("Created By", value: item.wrappedCreatedBy)
-                LabeledContent("Last Modified", value: item.wrappedModifiedAt, format: .dateTime)
-                LabeledContent("Modified By", value: item.wrappedModifiedBy)
+                LabeledContent("Created", value: item.createdAt ?? Date(), format: .dateTime)
+                LabeledContent("Created By", value: item.createdBy ?? "")
+                LabeledContent("Last Modified", value: item.modifiedAt ?? Date(), format: .dateTime)
+                LabeledContent("Modified By", value: item.modifiedBy ?? "")
             }
             
             Section {
                 Button {
-                    print("View Change History button tapped")
                     showingHistory = true
                 } label: {
                     HStack {
@@ -50,7 +78,7 @@ struct ScheduleDetailView: View {
                 }
             }
         }
-        .navigationTitle("Transaction Details")
+        .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -80,8 +108,58 @@ struct ScheduleDetailView: View {
             Text("Are you sure you want to delete this transaction? This action cannot be undone.")
         }
         .sheet(isPresented: $showingHistory) {
-            HistoryView(itemId: item.wrappedId, viewModel: viewModel)
+            HistoryView(itemId: item.id ?? UUID(), viewModel: viewModel)
         }
+    }
+    
+    // Custom views and helpers
+    
+    private var navigationTitle: String {
+        if item.transactionType == "income" {
+            return "Income Details"
+        } else {
+            return "Expense Details"
+        }
+    }
+    
+    private var transactionTypeIcon: some View {
+        Group {
+            if item.transactionType == "income" {
+                Label("Income", systemImage: "arrow.down.circle.fill")
+                    .foregroundColor(.green)
+            } else {
+                Label("Expense", systemImage: "arrow.up.circle.fill")
+                    .foregroundColor(.red)
+            }
+        }
+        .font(.subheadline)
+    }
+    
+    private func businessTypeForItem() -> String? {
+        // Access business type from the business ID
+        guard let businessIdObj = item.businessId as? NSUUID,
+              let businessId = UUID(uuidString: businessIdObj.uuidString) else {
+            return nil
+        }
+        
+        // This would be more efficient with a proper business lookup service
+        // For now, just going through the view model
+        let businessItems = viewModel.scheduleItems.filter { scheduleItem in
+            guard let itemBusinessIdObj = scheduleItem.businessId as? NSUUID else { return false }
+            return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+        }
+        
+        if let firstItem = businessItems.first {
+            return getBusinessTypeFromName(firstItem.businessName ?? "")
+        }
+        
+        return nil
+    }
+    
+    private func getBusinessTypeFromName(_ name: String) -> String {
+        // This is a placeholder. In a real implementation, you would look up
+        // the business type from your business entity
+        return "Business"
     }
     
     @ViewBuilder
@@ -118,7 +196,7 @@ struct ScheduleDetailView: View {
     #endif
 }
 
-// HistoryView implementation - Updated to fix issues
+// HistoryView implementation
 struct HistoryView: View {
     let itemId: UUID
     @ObservedObject var viewModel: ScheduleViewModel
@@ -140,10 +218,8 @@ struct HistoryView: View {
             }
             .navigationTitle("Change History")
             .toolbar {
-                // Fixed Done button placement
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        print("Done button tapped")
                         dismiss()
                     } label: {
                         Text("Done")
@@ -152,7 +228,6 @@ struct HistoryView: View {
                 }
             }
             .onAppear {
-                print("HistoryView appeared for item \(itemId)")
                 loadHistory()
             }
         }
@@ -261,21 +336,42 @@ struct HistoryView: View {
     
     private func loadHistory() {
         isLoading = true
-        // Fetch history without delay
+        // Fetch history
         historyRecords = viewModel.fetchHistory(for: itemId)
         isLoading = false
+    }
+}
+
+// MARK: - Preview
+#if DEBUG
+struct ScheduleDetailView_Previews: PreviewProvider {
+    static var previews: some View {
+        let viewContext = PersistenceController.shared.container.viewContext
+        let testItem = Schedule(context: viewContext)
+        testItem.id = UUID()
+        testItem.date = Date()
+        testItem.store = "Office Supplies Store"
+        testItem.amount = NSDecimalNumber(value: 125.99)
+        testItem.category = "Office expenses"
+        testItem.notes = "Printer ink and paper"
+        testItem.businessId = UUID() as NSUUID
+        testItem.businessName = "My Software Company"
+        testItem.transactionType = "expense"
+        testItem.createdAt = Date().addingTimeInterval(-86400) // Yesterday
+        testItem.modifiedAt = Date()
+        testItem.createdBy = "John User"
+        testItem.modifiedBy = "John User"
         
-        print("Loaded \(historyRecords.count) history records")
-        
-        // Debug history records
-        for record in historyRecords {
-            print("Record from \(record.timestamp) by \(record.modifiedBy) with \(record.changes.count) changes")
-            for change in record.changes {
-                print("  - \(change.propertyName): '\(change.oldValue)' -> '\(change.newValue)'")
-            }
+        return NavigationStack {
+            ScheduleDetailView(
+                viewModel: ScheduleViewModel(),
+                item: testItem,
+                userId: "John User"
+            )
         }
     }
 }
+#endif
 
 // Extension for cross-platform image support
 #if os(iOS)
