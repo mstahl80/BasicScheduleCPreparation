@@ -1,4 +1,4 @@
-// SummaryViewComponents.swift
+// Updated SummaryViewComponents.swift
 import SwiftUI
 import Charts
 
@@ -71,8 +71,12 @@ struct SummaryFinancialChart: View {
         
         // Filter by business
         let businessItems = filteredItems.filter { item in
-            guard let itemBusinessIdObj = item.businessId as? NSUUID else { return false }
-            return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            if let businessIdObj = item.businessId {
+                // businessId is already an object, just get its uuidString
+                let idString = businessIdObj.uuidString
+                return UUID(uuidString: idString) == businessId
+            }
+            return false
         }
         
         // Filter by transaction type

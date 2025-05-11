@@ -379,8 +379,9 @@ struct ScheduleListView: View {
         // Apply business filter
         if let businessId = selectedBusinessId {
             items = items.filter {
-                if let businessIdObj = $0.businessId as? NSUUID {
-                    return UUID(uuidString: businessIdObj.uuidString) == businessId
+                if let businessIdObj = $0.businessId {
+                    let idString = businessIdObj.uuidString
+                    return UUID(uuidString: idString) == businessId
                 }
                 return false
             }

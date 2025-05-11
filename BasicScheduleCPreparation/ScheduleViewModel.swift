@@ -1,4 +1,4 @@
-// Updated ScheduleViewModel.swift
+// Updated ScheduleViewModel.swift without duplicate extension
 import Foundation
 import CoreData
 import SwiftUI
@@ -109,8 +109,8 @@ class ScheduleViewModel: ObservableObject {
     // Get items for a specific business
     func getItemsForBusiness(businessId: UUID) -> [Schedule] {
         return scheduleItems.filter {
-            if let scheduleBusinessId = ($0.businessId as? NSUUID)?.uuidString {
-                return UUID(uuidString: scheduleBusinessId) == businessId
+            if let scheduleBusinessId = $0.businessId {
+                return UUID(uuidString: scheduleBusinessId.uuidString) == businessId
             }
             return false
         }
@@ -181,6 +181,14 @@ class ScheduleViewModel: ObservableObject {
         }
     }
     
+    // Helper method to get UUID from businessId
+    private func getUUIDFromBusinessId(_ businessId: Any?) -> UUID? {
+        if let businessIdObj = businessId as? NSUUID {
+            return UUID(uuidString: businessIdObj.uuidString)
+        }
+        return nil
+    }
+    
     // Update an existing schedule item
     func updateScheduleItem(
         _ item: Schedule,
@@ -202,8 +210,7 @@ class ScheduleViewModel: ObservableObject {
         let oldCategory = item.category ?? ""
         let oldNotes = item.notes ?? ""
         let oldPhotoURL = item.photoURL ?? ""
-        let oldBusinessIdObj = item.businessId as? NSUUID
-        let oldBusinessId = oldBusinessIdObj != nil ? UUID(uuidString: oldBusinessIdObj!.uuidString) : nil
+        let oldBusinessId = getUUIDFromBusinessId(item.businessId)
         let oldBusinessName = item.businessName ?? ""
         let oldTransactionType = item.transactionType ?? ""
         
@@ -400,3 +407,5 @@ class ScheduleViewModel: ObservableObject {
             .sorted { $0.amount > $1.amount }
     }
 }
+
+// DO NOT add the businessIdAsUUID extension here - it's already defined elsewhere

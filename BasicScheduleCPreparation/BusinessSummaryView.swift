@@ -1,4 +1,4 @@
-// BusinessSummaryView.swift
+// Updated BusinessSummaryView.swift
 import SwiftUI
 import Charts
 
@@ -8,7 +8,7 @@ struct BusinessSummaryView: View {
     @Binding var selectedBusinessId: UUID?
     
     @State private var selectedDateRange: DateRange = .yearToDate
-    @State private var startDate: Date = Date().startOfYear()
+    @State private var startDate: Date = Date().getStartOfYear()
     @State private var endDate: Date = Date()
     @State private var showingCustomDatePicker = false
     
@@ -596,8 +596,10 @@ struct BusinessSummaryView: View {
     // Get items for a specific business
     private func getItemsForBusiness(_ businessId: UUID) -> [Schedule] {
         return filteredItems().filter { item in
-            guard let itemBusinessIdObj = item.businessId as? NSUUID else { return false }
-            return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            if let itemBusinessIdObj = item.businessId as? NSUUID {
+                return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            }
+            return false
         }
     }
     
@@ -660,55 +662,29 @@ struct BusinessSummaryView: View {
         let calendar = Calendar.current
         switch selectedDateRange {
         case .yearToDate:
-            let currentYear = calendar.component(.year, from: Date())
-            startDate = Date().startOfYear()
+            startDate = Date().getStartOfYear()
             endDate = Date()
             
         case .fullYear:
-            let currentYear = calendar.component(.year, from: Date())
-            startDate = Date.from(year: currentYear, month: 1, day: 1)
-            endDate = Date.from(year: currentYear, month: 12, day: 31)
+            let year = calendar.component(.year, from: Date())
+            startDate = Date.createFrom(year: year, month: 1, day: 1)
+            endDate = Date.createFrom(year: year, month: 12, day: 31)
             
         case .quarter:
             // Last 3 months
             let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: Date()) ?? Date()
-            startDate = calendar.startOfDay(for: threeMonthsAgo)
+            startDate = threeMonthsAgo.getStartOfDay()
             endDate = Date()
             
         case .month:
             // Last month
             let oneMonthAgo = calendar.date(byAdding: .month, value: -1, to: Date()) ?? Date()
-            startDate = calendar.startOfDay(for: oneMonthAgo)
+            startDate = oneMonthAgo.getStartOfDay()
             endDate = Date()
             
         case .custom:
             // Don't change dates - they're set by the date picker
             break
         }
-    }
-}
-
-// MARK: - Date Extensions
-
-extension Date {
-    func startOfYear() -> Date {
-        let calendar = Calendar.current
-        var components = calendar.dateComponents([.year], from: self)
-        components.month = 1
-        components.day = 1
-        components.hour = 0
-        components.minute = 0
-        components.second = 0
-        
-        return calendar.date(from: components) ?? self
-    }
-    
-    static func from(year: Int, month: Int, day: Int) -> Date {
-        var dateComponents = DateComponents()
-        dateComponents.year = year
-        dateComponents.month = month
-        dateComponents.day = day
-        
-        return Calendar.current.date(from: dateComponents) ?? Date()
     }
 }

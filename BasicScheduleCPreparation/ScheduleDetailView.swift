@@ -1,4 +1,4 @@
-// Complete ScheduleDetailView.swift
+// Complete ScheduleDetailView.swift with fixes
 import SwiftUI
 
 struct ScheduleDetailView: View {
@@ -137,7 +137,7 @@ struct ScheduleDetailView: View {
     
     private func businessTypeForItem() -> String? {
         // Access business type from the business ID
-        guard let businessIdObj = item.businessId as? NSUUID,
+        guard let businessIdObj = item.businessId,
               let businessId = UUID(uuidString: businessIdObj.uuidString) else {
             return nil
         }
@@ -145,8 +145,10 @@ struct ScheduleDetailView: View {
         // This would be more efficient with a proper business lookup service
         // For now, just going through the view model
         let businessItems = viewModel.scheduleItems.filter { scheduleItem in
-            guard let itemBusinessIdObj = scheduleItem.businessId as? NSUUID else { return false }
-            return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            if let itemBusinessIdObj = scheduleItem.businessId {
+                return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            }
+            return false
         }
         
         if let firstItem = businessItems.first {
@@ -339,6 +341,16 @@ struct HistoryView: View {
         // Fetch history
         historyRecords = viewModel.fetchHistory(for: itemId)
         isLoading = false
+    }
+}
+
+// MARK: - Extension to simplify businessId handling
+extension Schedule {
+    var businessIdAsUUID: UUID? {
+        if let businessIdObj = self.businessId {
+            return UUID(uuidString: businessIdObj.uuidString)
+        }
+        return nil
     }
 }
 

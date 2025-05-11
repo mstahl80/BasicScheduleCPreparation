@@ -149,8 +149,8 @@ struct ScheduleFormView: View {
             transactionType = item.transactionType ?? "expense"
             
             // Handle business ID - convert from NSUUID to UUID
-            if let businessIdNSUUID = item.businessId as? NSUUID {
-                let businessIdString = businessIdNSUUID.uuidString
+            if let businessIdObj = item.businessId {
+                let businessIdString = businessIdObj.uuidString
                 selectedBusinessId = UUID(uuidString: businessIdString)
                 selectedBusinessName = item.businessName ?? ""
             }
