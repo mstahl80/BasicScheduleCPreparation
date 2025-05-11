@@ -1,7 +1,7 @@
 // BusinessSelectorView.swift
 import SwiftUI
 
-struct BusinessSelectorView: View {
+struct FormBusinessSelector: View {
     @ObservedObject var businessViewModel: BusinessViewModel
     @Binding var selectedBusinessId: UUID?
     @Binding var selectedBusinessName: String
@@ -25,12 +25,12 @@ struct BusinessSelectorView: View {
                     Text("Select business...").tag(nil as UUID?)
                     
                     ForEach(businessViewModel.businesses) { business in
-                        Text(business.wrappedName).tag(business.wrappedId as UUID?)
+                        Text(business.name ?? "").tag(business.id as UUID?)
                     }
                 }
                 .onChange(of: selectedBusinessId) { _, newId in
                     if let newId = newId, let business = businessViewModel.getBusiness(by: newId) {
-                        selectedBusinessName = business.wrappedName
+                        selectedBusinessName = business.name ?? ""
                     } else {
                         selectedBusinessName = ""
                     }
@@ -108,8 +108,8 @@ struct BusinessSelectorView: View {
         // Add the business
         businessViewModel.addBusiness(name: newBusinessName, businessType: newBusinessType, userId: userId) { newBusiness in
             // Select the newly created business
-            selectedBusinessId = newBusiness.wrappedId
-            selectedBusinessName = newBusiness.wrappedName
+            selectedBusinessId = newBusiness.id
+            selectedBusinessName = newBusiness.name ?? ""
             
             // Reset form fields
             newBusinessName = ""
@@ -120,3 +120,16 @@ struct BusinessSelectorView: View {
         }
     }
 }
+
+#if DEBUG
+struct FormBusinessSelector_Previews: PreviewProvider {
+    static var previews: some View {
+        FormBusinessSelector(
+            businessViewModel: BusinessViewModel(),
+            selectedBusinessId: .constant(nil),
+            selectedBusinessName: .constant(""),
+            userId: "Test User"
+        )
+    }
+}
+#endif
