@@ -1,4 +1,4 @@
-// Updated ScheduleListView.swift
+// ScheduleListView.swift - Complete file with export functionality
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -27,6 +27,7 @@ struct ScheduleListView: View {
     @State private var selectedTab = 0
     @State private var showingDeleteConfirm = false
     @State private var itemToDelete: Schedule? = nil
+    @State private var showingExportView = false
     
     // Business filter
     @State private var selectedBusinessId: UUID? = nil
@@ -149,6 +150,9 @@ struct ScheduleListView: View {
         }
         .sheet(isPresented: $showingShareData) {
             ShareDataView()
+        }
+        .sheet(isPresented: $showingExportView) {
+            ExportView(viewModel: viewModel)
         }
         .overlay {
             if viewModel.isLoading {
@@ -308,7 +312,7 @@ struct ScheduleListView: View {
         .padding()
     }
     
-    // Fix toolbar content to use ToolbarContentBuilder
+    // Updated toolbar content with export option
     @ToolbarContentBuilder
     private var transactionsToolbarContent: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
@@ -325,6 +329,12 @@ struct ScheduleListView: View {
                     showingUserProfile = true
                 } label: {
                     Label("User Profile", systemImage: "person.circle")
+                }
+                
+                Button {
+                    showingExportView = true
+                } label: {
+                    Label("Export Data", systemImage: "square.and.arrow.up")
                 }
                 
                 // Only show share option in shared mode
@@ -350,6 +360,12 @@ struct ScheduleListView: View {
                     showingUserProfile = true
                 } label: {
                     Label("User Profile", systemImage: "person.circle")
+                }
+                
+                Button {
+                    showingExportView = true
+                } label: {
+                    Label("Export Data", systemImage: "square.and.arrow.up")
                 }
                 
                 // Only show share option in shared mode

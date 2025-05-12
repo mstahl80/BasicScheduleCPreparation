@@ -4,8 +4,16 @@ import SwiftUI
 @main
 struct BasicScheduleCPreparationApp: App {
     let persistenceController = PersistenceController.shared
+    
     // Remove StateObject for UserAuthManager
     @State private var databaseReady = false
+    
+    init() {
+        // Default to standalone mode unless explicitly set otherwise
+        if !UserDefaults.standard.bool(forKey: "modeWasExplicitlySet") {
+            UserDefaults.standard.set(false, forKey: "isUsingSharedData")
+        }
+    }
     
     // Track auth state using UserDefaults
     private var isAuthenticated: Bool {

@@ -1,4 +1,4 @@
-// Enhanced ScheduleDetailView with spacing between record info and history button
+// Updated ScheduleDetailView with only one history button
 import SwiftUI
 
 struct ScheduleDetailView: View {
@@ -68,23 +68,7 @@ struct ScheduleDetailView: View {
                 LabeledContent("Modified By", value: item.modifiedBy ?? "")
             }
             
-            // Separate section for the history button in record info
-            Section {
-                Button {
-                    showingHistory = true
-                } label: {
-                    HStack {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .foregroundColor(.blue)
-                        Text("View Change History")
-                            .foregroundColor(.blue)
-                            .fontWeight(.medium)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            
-            // Add a dedicated, prominent section for History
+            // Change History Section - Single prominent button for history
             Section("Change History") {
                 Button {
                     showingHistory = true
@@ -108,7 +92,7 @@ struct ScheduleDetailView: View {
                             .foregroundColor(.blue)
                     }
                     .contentShape(Rectangle())
-                    .padding(.vertical, 6) // Add some vertical padding for prominence
+                    .padding(.vertical, 6)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -120,15 +104,6 @@ struct ScheduleDetailView: View {
                     showingEditSheet = true
                 } label: {
                     Label("Edit", systemImage: "pencil")
-                }
-            }
-            
-            // Add History button to the toolbar as well
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showingHistory = true
-                } label: {
-                    Label("History", systemImage: "clock.arrow.circlepath")
                 }
             }
             

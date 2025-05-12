@@ -1,4 +1,4 @@
-// UserProfileView.swift - Fixed version
+// UserProfileView.swift - Enhanced version with standalone default and export functionality
 import SwiftUI
 import CloudKit
 
@@ -6,11 +6,16 @@ struct UserProfileView: View {
     // Use StateObject instead of EnvironmentObject to avoid type issues
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @Environment(\.dismiss) private var dismiss
+    
+    // State variables
     @State private var showingSignOutConfirmation = false
     @State private var showingResetConfirmation = false
     @State private var showingSuccess = false
     @State private var successMessage = ""
     @State private var showingAdminSetup = false
+    @State private var showEnableSharedDataConfirmation = false
+    @State private var showingExportView = false
+    @State private var showingDataSharingInfo = false
     
     var body: some View {
         NavigationStack {
@@ -47,17 +52,40 @@ struct UserProfileView: View {
                     }
                 }
                 
-                // Data Mode Section
+                // Data Management Section - Enhanced to manage sharing mode
                 Section("Data Management") {
-                    NavigationLink(destination: ModeSwitcherView()) {
-                        HStack {
-                            Image(systemName: "arrow.triangle.swap")
-                            Text("Change Data Mode")
+                    if !isUsingSharedData() {
+                        // Option to enable shared mode
+                        Button {
+                            showEnableSharedDataConfirmation = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "cloud.fill")
+                                Text("Enable Data Sharing")
+                            }
+                            .foregroundColor(.blue)
                         }
-                    }
-                    
-                    // Only show share option in shared mode
-                    if isUsingSharedData() {
+                        
+                        // Learn more about data sharing
+                        Button {
+                            showingDataSharingInfo = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "info.circle")
+                                Text("About Data Sharing")
+                            }
+                            .foregroundColor(.blue)
+                        }
+                    } else {
+                        // Show mode switcher when already in shared mode
+                        NavigationLink(destination: ModeSwitcherView()) {
+                            HStack {
+                                Image(systemName: "arrow.triangle.swap")
+                                Text("Change Data Mode")
+                            }
+                        }
+                        
+                        // Only show share option in shared mode with admin rights
                         if isAdmin() {
                             NavigationLink(destination: ShareDataView()) {
                                 HStack {
@@ -69,33 +97,60 @@ struct UserProfileView: View {
                     }
                 }
                 
-                // Admin Section
-                Section("Admin Management") {
-                    if isAdmin() {
-                        NavigationLink(destination: AdminView()) {
-                            HStack {
-                                Image(systemName: "person.2.badge.key.fill")
-                                Text("Manage Access")
-                            }
+                // Data Export Section
+                Section("Data Export") {
+                    Button {
+                        showingExportView = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Export Data")
                         }
-                        .foregroundColor(.blue)
-                    } else {
-                        Button {
-                            showingAdminSetup = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "key.fill")
-                                Text("Set Up as Administrator")
-                            }
-                        }
-                        .foregroundColor(.blue)
                     }
                     
-                    // Show explanation text
-                    if !isAdmin() {
-                        Text("Administrators can invite other users and manage access to shared data.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    Text("Export your transaction data as CSV or full backup including receipt images.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                // Admin Section - Enhanced with explanatory text
+                Section("Admin Management") {
+                    if isUsingSharedData() {
+                        if isAdmin() {
+                            NavigationLink(destination: AdminView()) {
+                                HStack {
+                                    Image(systemName: "person.2.badge.key.fill")
+                                    Text("Manage Access")
+                                }
+                            }
+                            .foregroundColor(.blue)
+                        } else {
+                            Button {
+                                showingAdminSetup = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "key.fill")
+                                    Text("Set Up as Administrator")
+                                }
+                            }
+                            .foregroundColor(.blue)
+                            
+                            // Add explanatory text about admin access
+                            Text("Administrators can invite other users and manage access to shared data.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    } else {
+                        // Explain that admin features require shared mode
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Admin features available in shared mode")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Enable data sharing to access administrator features for inviting others and managing permissions.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 
@@ -181,8 +236,33 @@ struct UserProfileView: View {
             } message: {
                 Text(successMessage)
             }
+            .alert("Enable Data Sharing?", isPresented: $showEnableSharedDataConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Enable") {
+                    // Mark that we're explicitly setting the mode
+                    UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
+                    
+                    // Enable shared mode
+                    toggleDataSharingMode(useShared: true)
+                    
+                    // Optionally show admin setup right after enabling sharing
+                    if shouldOfferAdminSetup() {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            showingAdminSetup = true
+                        }
+                    }
+                }
+            } message: {
+                Text("Data sharing allows you to synchronize your data across devices and share with others. You'll need to sign in with your Apple ID. Would you like to enable this feature?")
+            }
             .sheet(isPresented: $showingAdminSetup) {
                 AdminSetupView()
+            }
+            .sheet(isPresented: $showingExportView) {
+                ExportView(viewModel: ScheduleViewModel())
+            }
+            .sheet(isPresented: $showingDataSharingInfo) {
+                DataSharingInfoView()
             }
         }
     }
@@ -309,6 +389,50 @@ struct UserProfileView: View {
                 authObj.perform(selector)
             }
         }
+    }
+    
+    // Helper to toggle data sharing mode
+    private func toggleDataSharingMode(useShared: Bool) {
+        UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
+        
+        if useShared {
+            // Check if authenticated
+            if !isAuthenticated() {
+                // We'll need to authenticate - a login screen will appear
+                // The shared container will be activated after successful login
+            } else {
+                // Already authenticated, switch to shared store
+                PersistenceController.shared.switchToSharedStore()
+            }
+        } else {
+            // Switch to local store
+            PersistenceController.shared.switchToLocalStore()
+        }
+        
+        // Notify system of changes
+        NotificationCenter.default.post(name: Notification.Name("DataSharingModeChanged"), object: nil)
+    }
+    
+    // Determine if we should offer admin setup
+    private func shouldOfferAdminSetup() -> Bool {
+        // Only offer if using shared data and authenticated
+        guard isUsingSharedData() && isAuthenticated() else {
+            return false
+        }
+        
+        // Do a quick check for existing admins (you may want to cache this)
+        var shouldOffer = false
+        let group = DispatchGroup()
+        group.enter()
+        
+        cloudKitManager.checkIfAdminExists { exists in
+            shouldOffer = !exists  // Offer if no admin exists
+            group.leave()
+        }
+        
+        // Wait for the check to complete (with timeout)
+        _ = group.wait(timeout: .now() + 2.0)
+        return shouldOffer
     }
     
     private func clearAppCache() {

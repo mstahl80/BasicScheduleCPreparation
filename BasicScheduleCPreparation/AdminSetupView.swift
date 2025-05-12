@@ -1,20 +1,7 @@
-// Improved admin setup approach without hardcoded PIN
-
-/*
-This file outlines a better approach to admin setup that doesn't require
-a hardcoded PIN. This approach provides multiple ways to gain admin status:
-
-1. First-User-Is-Admin: The first user to set up shared data becomes admin
-2. Owner-Based-Admin: The user who creates the CloudKit container becomes admin
-3. Self-Service-Admin: For standalone deployments or initial setup
-
-Each approach avoids hardcoding sensitive credentials in the code.
-*/
-
+// AdminSetupView.swift - Simplified for user profile flow
 import SwiftUI
 import CloudKit
 
-// MARK: - Improved AdminSetupView
 struct AdminSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var cloudKitManager = CloudKitManager.shared
@@ -39,7 +26,7 @@ struct AdminSetupView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 25) {
-                // Header
+                // Modified header for user profile flow
                 Text("Administrator Setup")
                     .font(.title)
                     .bold()
@@ -48,6 +35,12 @@ struct AdminSetupView: View {
                     .font(.system(size: 70))
                     .foregroundColor(.blue)
                     .padding()
+                
+                // Add explanatory text for user profile context
+                Text("You're currently using shared data mode. Would you like to set yourself up as an administrator?")
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                    .foregroundColor(.secondary)
                 
                 if isProcessing {
                     ProgressView("Checking system status...")
@@ -125,6 +118,7 @@ struct AdminSetupView: View {
     }
     
     // MARK: - Dynamic Content Based on State
+    // Simplified for user profile context
     private var setupContentView: some View {
         VStack(spacing: 15) {
             if adminExists {
@@ -142,56 +136,18 @@ struct AdminSetupView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
                 }
-            } else if isOwner {
-                // User is the owner of the CloudKit container
-                successCard(
-                    title: "You Own This System",
-                    message: "As the creator of this shared data system, you're eligible to become the administrator.",
-                    iconName: "crown.fill"
-                )
-                
-                Button {
-                    confirmAdminSetup = true
-                } label: {
-                    Text("Set Up Administrator Access")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .padding(.horizontal)
-            } else if isFirstUser {
-                // First user to set up shared data
-                successCard(
-                    title: "First User Setup",
-                    message: "You're the first user to set up shared data. You can become the administrator.",
+            } else {
+                // Simplified to a single option for user profile flow
+                infoCard(
+                    title: "Become Administrator",
+                    message: "As administrator, you'll be able to invite others and manage access to shared data.",
                     iconName: "person.badge.key"
                 )
                 
                 Button {
                     confirmAdminSetup = true
                 } label: {
-                    Text("Set Up Administrator Access")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                }
-                .padding(.horizontal)
-            } else {
-                // Self-service admin setup
-                infoCard(
-                    title: "Self-Service Admin Setup",
-                    message: "Since this appears to be a new deployment, you can set yourself up as the administrator.",
-                    iconName: "person.fill.checkmark"
-                )
-                
-                Button {
-                    confirmAdminSetup = true
-                } label: {
-                    Text("Set Up Administrator Access")
+                    Text("Set Up as Administrator")
                         .frame(maxWidth: .infinity)
                         .padding()
                         .background(Color.blue)
