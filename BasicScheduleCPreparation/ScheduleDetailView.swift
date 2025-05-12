@@ -1,4 +1,4 @@
-// Complete ScheduleDetailView.swift with fixes
+// Enhanced ScheduleDetailView with spacing between record info and history button
 import SwiftUI
 
 struct ScheduleDetailView: View {
@@ -60,6 +60,7 @@ struct ScheduleDetailView: View {
                 }
             }
             
+            // Record Information Section
             Section("Record Information") {
                 LabeledContent("Created", value: item.createdAt ?? Date(), format: .dateTime)
                 LabeledContent("Created By", value: item.createdBy ?? "")
@@ -67,15 +68,49 @@ struct ScheduleDetailView: View {
                 LabeledContent("Modified By", value: item.modifiedBy ?? "")
             }
             
+            // Separate section for the history button in record info
             Section {
                 Button {
                     showingHistory = true
                 } label: {
                     HStack {
                         Image(systemName: "clock.arrow.circlepath")
+                            .foregroundColor(.blue)
                         Text("View Change History")
+                            .foregroundColor(.blue)
+                            .fontWeight(.medium)
                     }
                 }
+                .padding(.vertical, 4)
+            }
+            
+            // Add a dedicated, prominent section for History
+            Section("Change History") {
+                Button {
+                    showingHistory = true
+                } label: {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.title3)
+                        
+                        VStack(alignment: .leading) {
+                            Text("View Change History")
+                                .font(.headline)
+                            
+                            Text("See all changes made to this entry")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.blue)
+                    }
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 6) // Add some vertical padding for prominence
+                }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .navigationTitle(navigationTitle)
@@ -85,6 +120,15 @@ struct ScheduleDetailView: View {
                     showingEditSheet = true
                 } label: {
                     Label("Edit", systemImage: "pencil")
+                }
+            }
+            
+            // Add History button to the toolbar as well
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showingHistory = true
+                } label: {
+                    Label("History", systemImage: "clock.arrow.circlepath")
                 }
             }
             
@@ -198,161 +242,20 @@ struct ScheduleDetailView: View {
     #endif
 }
 
-// HistoryView implementation
-struct HistoryView: View {
-    let itemId: UUID
-    @ObservedObject var viewModel: ScheduleViewModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var isLoading = true
-    @State private var historyRecords: [HistoryEntry] = []
-    
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                } else if historyRecords.isEmpty {
-                    emptyHistoryView
-                } else {
-                    historyListView
-                }
-            }
-            .navigationTitle("Change History")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Text("Done")
-                            .bold()
-                    }
-                }
-            }
-            .onAppear {
-                loadHistory()
-            }
-        }
-    }
-    
-    private var emptyHistoryView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 60))
-                .foregroundColor(.secondary)
-            
-            Text("No change history available")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            
-            Text("Changes to this entry will be tracked and shown here.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-    }
-    
-    private var historyListView: some View {
-        List {
-            ForEach(historyRecords) { record in
-                Section {
-                    historyRecordView(for: record)
-                }
-            }
-        }
-        .listStyle(InsetGroupedListStyle())
-    }
-    
-    private func historyRecordView(for record: HistoryEntry) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with timestamp and user
-            HStack {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundColor(.blue)
-                
-                VStack(alignment: .leading) {
-                    Text(record.timestamp.formatted(date: .abbreviated, time: .shortened))
-                        .font(.headline)
-                    
-                    Text("Modified by: \(record.modifiedBy)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.bottom, 4)
-            
-            Divider()
-            
-            // Changes
-            ForEach(record.changes) { change in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(change.propertyName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Previous:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Text(change.oldValue)
-                                .font(.callout)
-                                .foregroundColor(.primary)
-                                .padding(6)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(4)
-                        }
-                        
-                        Image(systemName: "arrow.right")
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Changed to:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            
-                            Text(change.newValue)
-                                .font(.callout)
-                                .foregroundColor(.primary)
-                                .padding(6)
-                                .background(Color.green.opacity(0.15))
-                                .cornerRadius(4)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-                
-                if change.id != record.changes.last?.id {
-                    Divider()
-                        .padding(.vertical, 4)
-                }
-            }
-        }
-        .padding(.vertical, 6)
-    }
-    
-    private func loadHistory() {
-        isLoading = true
-        // Fetch history
-        historyRecords = viewModel.fetchHistory(for: itemId)
-        isLoading = false
+// Extension for cross-platform image support
+#if os(iOS)
+extension Image {
+    init(uiOrNsImage: UIImage) {
+        self.init(uiImage: uiOrNsImage)
     }
 }
-
-// MARK: - Extension to simplify businessId handling
-extension Schedule {
-    var businessIdAsUUID: UUID? {
-        if let businessIdObj = self.businessId {
-            return UUID(uuidString: businessIdObj.uuidString)
-        }
-        return nil
+#elseif os(macOS)
+extension Image {
+    init(uiOrNsImage: NSImage) {
+        self.init(nsImage: uiOrNsImage)
     }
 }
+#endif
 
 // MARK: - Preview
 #if DEBUG
@@ -381,21 +284,6 @@ struct ScheduleDetailView_Previews: PreviewProvider {
                 userId: "John User"
             )
         }
-    }
-}
-#endif
-
-// Extension for cross-platform image support
-#if os(iOS)
-extension Image {
-    init(uiOrNsImage: UIImage) {
-        self.init(uiImage: uiOrNsImage)
-    }
-}
-#elseif os(macOS)
-extension Image {
-    init(uiOrNsImage: NSImage) {
-        self.init(nsImage: uiOrNsImage)
     }
 }
 #endif

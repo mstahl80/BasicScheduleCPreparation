@@ -1,4 +1,4 @@
-// ShareDataView.swift
+// ShareDataView.swift - Fixed version
 import SwiftUI
 import CloudKit
 #if os(iOS)
@@ -15,7 +15,7 @@ struct ShareDataView: View {
     @State private var showSuccessAlert = false
     @State private var showShareSheet = false
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedRole: CloudKitManager.UserPermissionRecord.UserRole = .editor
+    @State private var selectedRole: CloudKitTypes.UserPermissionRecord.UserRole = .editor
     
     // Create a state object to hold the sharing delegate
     #if os(iOS)
@@ -49,12 +49,12 @@ struct ShareDataView: View {
                     
                     // Add role selector
                     Picker("User Role", selection: $selectedRole) {
-                        Text("Viewer (Read-only)").tag(CloudKitManager.UserPermissionRecord.UserRole.viewer)
-                        Text("Editor (Can modify)").tag(CloudKitManager.UserPermissionRecord.UserRole.editor)
+                        Text("Viewer (Read-only)").tag(CloudKitTypes.UserPermissionRecord.UserRole.viewer)
+                        Text("Editor (Can modify)").tag(CloudKitTypes.UserPermissionRecord.UserRole.editor)
                         
                         // Only show admin option if current user is admin
                         if isAdmin {
-                            Text("Administrator (Full control)").tag(CloudKitManager.UserPermissionRecord.UserRole.admin)
+                            Text("Administrator (Full control)").tag(CloudKitTypes.UserPermissionRecord.UserRole.admin)
                         }
                     }
                     .pickerStyle(.menu)
@@ -249,7 +249,7 @@ struct ShareDataView: View {
 }
 
 #if os(iOS)
-// Delegate class for UICloudSharingController as an ObservableObject
+// Delegate class for UICloudSharingController
 class SharingDelegate: NSObject, UICloudSharingControllerDelegate, ObservableObject {
     func cloudSharingController(_ csc: UICloudSharingController, failedToSaveShareWithError error: Error) {
         print("Failed to save CloudKit share: \(error)")

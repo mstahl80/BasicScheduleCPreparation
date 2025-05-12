@@ -1,4 +1,4 @@
-// AdminView.swift
+// AdminView.swift - Fixed version
 import SwiftUI
 import CloudKit
 
@@ -9,9 +9,9 @@ struct AdminView: View {
     
     @State private var showingConfirmation = false
     @State private var actionType: ActionType = .none
-    @State private var selectedInvitation: CloudKitManager.InvitationRecord?
-    @State private var selectedPermission: CloudKitManager.UserPermissionRecord?
-    @State private var newRoleForPermission: CloudKitManager.UserPermissionRecord.UserRole = .editor
+    @State private var selectedInvitation: CloudKitTypes.InvitationRecord?
+    @State private var selectedPermission: CloudKitTypes.UserPermissionRecord?
+    @State private var newRoleForPermission: CloudKitTypes.UserPermissionRecord.UserRole = .editor
     
     enum ActionType {
         case none
@@ -236,7 +236,7 @@ struct AdminView: View {
 // MARK: - Row Views
 
 struct InvitationRow: View {
-    let invitation: CloudKitManager.InvitationRecord
+    let invitation: CloudKitTypes.InvitationRecord
     let onDelete: () -> Void
     
     var body: some View {
@@ -272,7 +272,7 @@ struct InvitationRow: View {
 }
 
 struct AcceptedInvitationRow: View {
-    let invitation: CloudKitManager.InvitationRecord
+    let invitation: CloudKitTypes.InvitationRecord
     
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -301,9 +301,9 @@ struct AcceptedInvitationRow: View {
 }
 
 struct UserPermissionRow: View {
-    let permission: CloudKitManager.UserPermissionRecord
+    let permission: CloudKitTypes.UserPermissionRecord
     let onRevoke: () -> Void
-    let onRoleChange: (CloudKitManager.UserPermissionRecord.UserRole) -> Void
+    let onRoleChange: (CloudKitTypes.UserPermissionRecord.UserRole) -> Void
     
     @State private var showingRoleMenu = false
     

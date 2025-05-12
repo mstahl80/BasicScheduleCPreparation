@@ -1,4 +1,4 @@
-// AdminAuthManager.swift
+// AdminAuthManager.swift - Fixed version
 import Foundation
 import AuthenticationServices
 import SwiftUI
@@ -9,7 +9,7 @@ class AdminAuthManager: NSObject, ObservableObject {
     @Published var isAuthenticated = false
     @Published var isUsingSharedData = false
     @Published var authError: Error?
-    @Published var userRole: CloudKitManager.UserPermissionRecord.UserRole?
+    @Published var userRole: CloudKitTypes.UserPermissionRecord.UserRole?
     
     static let shared = AdminAuthManager()
     

@@ -1,4 +1,4 @@
-// Updated ScheduleViewModel.swift without duplicate extension
+// ScheduleViewModel.swift - Updated with edit tracking functionality
 import Foundation
 import CoreData
 import SwiftUI
@@ -408,4 +408,12 @@ class ScheduleViewModel: ObservableObject {
     }
 }
 
-// DO NOT add the businessIdAsUUID extension here - it's already defined elsewhere
+// Extension for business ID conversion to UUID
+extension Schedule {
+    var businessIdAsUUID: UUID? {
+        if let businessIdObj = self.businessId {
+            return UUID(uuidString: businessIdObj.uuidString)
+        }
+        return nil
+    }
+}

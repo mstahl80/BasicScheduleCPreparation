@@ -1,4 +1,4 @@
-// UserProfileView.swift
+// UserProfileView.swift - Fixed version
 import SwiftUI
 import CloudKit
 
@@ -189,7 +189,7 @@ struct UserProfileView: View {
     
     // Helper methods
     
-    private func roleText(for role: CloudKitManager.UserPermissionRecord.UserRole) -> String {
+    private func roleText(for role: CloudKitTypes.UserPermissionRecord.UserRole) -> String {
         switch role {
         case .admin:
             return "Administrator"
@@ -272,19 +272,19 @@ struct UserProfileView: View {
     }
     
     // Helper to get user role
-    private func getUserRole() -> CloudKitManager.UserPermissionRecord.UserRole? {
+    private func getUserRole() -> CloudKitTypes.UserPermissionRecord.UserRole? {
         let authManager = AuthAccess.getAuthManager()
         if let authObj = authManager as? NSObject {
             // Use value(forKey:) without conditional binding for non-optional selector
             if let roleValue = authObj.value(forKey: "userRole") as? Int {
                 if roleValue >= 0 && roleValue < 3 {
                     let roleStrings = ["admin", "editor", "viewer"]
-                    if let role = CloudKitManager.UserPermissionRecord.UserRole(rawValue: roleStrings[roleValue]) {
+                    if let role = CloudKitTypes.UserPermissionRecord.UserRole(rawValue: roleStrings[roleValue]) {
                         return role
                     }
                 }
             } else if let roleString = authObj.value(forKey: "userRole") as? String,
-                      let role = CloudKitManager.UserPermissionRecord.UserRole(rawValue: roleString) {
+                      let role = CloudKitTypes.UserPermissionRecord.UserRole(rawValue: roleString) {
                 return role
             }
         }

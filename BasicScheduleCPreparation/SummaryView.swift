@@ -1,4 +1,4 @@
-// SummaryView.swift - Updated version using modular components
+// SummaryView.swift - Updated version using modular components with fixed date method
 import SwiftUI
 import Charts
 
@@ -98,7 +98,7 @@ struct SummaryView: View {
     @State private var availableYears: [Int] = []
     @State private var selectedMonth: Int? = nil
     @State private var dateRange: SummaryDateRange = .yearToDate
-    @State private var startDate: Date = Date().startOfYear()
+    @State private var startDate: Date = Date().getStartOfYear() // Fixed to use the correct extension method
     @State private var endDate: Date = Date()
     @State private var showingCustomDatePicker = false
     @State private var minExpenseFilter: Double? = nil
