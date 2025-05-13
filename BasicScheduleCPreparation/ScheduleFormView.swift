@@ -1,4 +1,4 @@
-// Complete ScheduleFormView.swift
+// Complete ScheduleFormView.swift with purchased item field
 import SwiftUI
 
 struct ScheduleFormView: View {
@@ -13,6 +13,7 @@ struct ScheduleFormView: View {
     @State private var date = Date()
     @State private var amount = Decimal(0)
     @State private var store = ""
+    @State private var purchasedItem = "" // New field for the purchased item
     @State private var selectedCategory = ""
     @State private var notes = ""
     @State private var photoURL: String? = nil
@@ -63,11 +64,13 @@ struct ScheduleFormView: View {
                     TextField("Payee/Store", text: $store)
                         .textInputAutocapitalization(.words)
                     
-                    HStack {
-                        Text("$")
-                        TextField("Amount", value: $amount, format: .currency(code: "USD").precision(.fractionLength(2)))
-                            .keyboardType(.decimalPad)
-                    }
+                    // New field for purchased item
+                    TextField("Purchased Item", text: $purchasedItem)
+                        .textInputAutocapitalization(.words)
+                    
+                    // Fixed amount field with a single dollar sign
+                    TextField("Amount", value: $amount, format: .currency(code: "USD").precision(.fractionLength(2)))
+                        .keyboardType(.decimalPad)
                     
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Category")
@@ -143,6 +146,10 @@ struct ScheduleFormView: View {
             date = item.date ?? Date()
             amount = item.amount?.decimalValue ?? Decimal(0)
             store = item.store ?? ""
+            // Load purchased item if it exists in the item
+            if let itemPurchased = item.value(forKey: "purchasedItem") as? String {
+                purchasedItem = itemPurchased
+            }
             selectedCategory = item.category ?? ""
             notes = item.notes ?? ""
             photoURL = item.photoURL
@@ -192,6 +199,7 @@ struct ScheduleFormView: View {
                 date: date,
                 amount: amount,
                 store: store,
+                purchasedItem: purchasedItem, // Pass the purchased item
                 category: selectedCategory,
                 notes: notes.isEmpty ? nil : notes,
                 photoURL: photoURL,
@@ -205,6 +213,7 @@ struct ScheduleFormView: View {
                 date: date,
                 amount: amount,
                 store: store,
+                purchasedItem: purchasedItem, // Pass the purchased item
                 category: selectedCategory,
                 notes: notes.isEmpty ? nil : notes,
                 photoURL: photoURL,

@@ -21,6 +21,7 @@
         <attribute name="modifiedBy" optional="YES" attributeType="String"/>
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="photoURL" optional="YES" attributeType="String"/>
+        <attribute name="purchasedItem" optional="YES" attributeType="String"/>
         <attribute name="store" optional="YES" attributeType="String"/>
         <attribute name="transactionType" optional="YES" attributeType="String"/>
     </entity>

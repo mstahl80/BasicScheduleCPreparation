@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		437D12902DD3577F00AEBC99 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 437D128F2DD3577F00AEBC99 /* ZIPFoundation */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		430DAAFD2DCB6FAA00268C53 /* BasicScheduleCPreparation.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BasicScheduleCPreparation.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				437D12902DD3577F00AEBC99 /* ZIPFoundation in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 			);
 			name = BasicScheduleCPreparation;
 			packageProductDependencies = (
+				437D128F2DD3577F00AEBC99 /* ZIPFoundation */,
 			);
 			productName = BasicScheduleCPreparation;
 			productReference = 430DAAFD2DCB6FAA00268C53 /* BasicScheduleCPreparation.app */;
@@ -107,6 +113,9 @@
 			);
 			mainGroup = 430DAAF42DCB6FA900268C53;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				437D128E2DD3577F00AEBC99 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 430DAAFE2DCB6FAA00268C53 /* Products */;
 			projectDirPath = "";
@@ -356,6 +365,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		437D128E2DD3577F00AEBC99 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		437D128F2DD3577F00AEBC99 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 437D128E2DD3577F00AEBC99 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 430DAAF52DCB6FA900268C53 /* Project object */;
 }

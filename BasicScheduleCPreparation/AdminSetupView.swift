@@ -1,4 +1,4 @@
-// AdminSetupView.swift - Simplified for user profile flow
+// AdminSetupView.swift - Updated with modern CloudKit API
 import SwiftUI
 import CloudKit
 
@@ -425,27 +425,51 @@ struct AdminSetupView: View {
         // Check if there are any user permission records
         let query = CKQuery(recordType: "UserPermission", predicate: NSPredicate(value: true))
         
-        container.privateCloudDatabase.perform(query, inZoneWith: nil) { (records, error) in
-            DispatchQueue.main.async {
-                if let error = error {
-                    debugInfo += "Error checking for users: \(error.localizedDescription)\n"
-                    completion(false)
-                    return
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // Use the modern API for iOS 15+
+            container.privateCloudDatabase.fetch(
+                withQuery: query,
+                inZoneWith: nil,
+                desiredKeys: nil,
+                resultsLimit: 1
+            ) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let (matchResults, _)):
+                        // If there are no user records, this is the first user
+                        let isFirstUser = matchResults.isEmpty
+                        completion(isFirstUser)
+                        
+                    case .failure(let error):
+                        debugInfo += "Error checking for users: \(error.localizedDescription)\n"
+                        completion(false)
+                    }
                 }
-                
-                // If there are no user records, this is the first user
-                let isFirstUser = records?.isEmpty ?? true
-                completion(isFirstUser)
+            }
+        } else {
+            // Use the legacy API for iOS 14 and earlier
+            container.privateCloudDatabase.perform(query, inZoneWith: nil) { (records, error) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        debugInfo += "Error checking for users: \(error.localizedDescription)\n"
+                        completion(false)
+                        return
+                    }
+                    
+                    // If there are no user records, this is the first user
+                    let isFirstUser = records?.isEmpty ?? true
+                    completion(isFirstUser)
+                }
             }
         }
     }
     
-    // Helper to check if shared data is enabled
+    // Helper to check if using shared data
     private func isUsingSharedData() -> Bool {
         return UserDefaults.standard.bool(forKey: "isUsingSharedData")
     }
     
-    // Helper to check if user is authenticated
+    // Helper to check if authenticated
     private func isAuthenticated() -> Bool {
         let authManager = AuthAccess.getAuthManager()
         

@@ -1,4 +1,4 @@
-// CloudKitPermissionManager.swift
+// Updated CloudKitPermissionManager.swift with constant declaration fix
 import CloudKit
 import Combine
 import SwiftUI
@@ -84,7 +84,7 @@ class CloudKitPermissionManager: ObservableObject {
     /// Revokes a user's access to shared data
     /// - Parameters:
     ///   - permission: The permission record to revoke
-    ///   - completion: Closure called when the operation completes
+    ///   - completion: Closure with optional error
     func revokeAccess(_ permission: CloudKitTypes.UserPermissionRecord, completion: @escaping (Error?) -> Void) {
         CloudKitConfiguration.privateDatabase.delete(withRecordID: permission.id) { [weak self] (_, error: Error?) in
             DispatchQueue.main.async {
@@ -295,12 +295,79 @@ class CloudKitPermissionManager: ObservableObject {
                 CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { [weak self] (records: [CKRecord]?, error: Error?) in
                     guard let self = self else { return }
                     
+                    if let error = error {
+                        DispatchQueue.main.async {
+                            completion(false, error.localizedDescription)
+                        }
+                        return
+                    }
+                    
                     if let record = records?.first {
                         // Update existing record to admin role
                         self.updateExistingUserToAdmin(record: record, completion: completion)
                     } else {
                         // Create new admin permission record
                         self.createNewAdminUser(recordID: recordID, userName: userName, completion: completion)
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Helper to mark an invitation as revoked
+    private func markInvitationAsRevoked(code: String, completion: @escaping (Error?) -> Void = { _ in }) {
+        let predicate = NSPredicate(format: "code == %@", code)
+        
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // Use the newer API for iOS 15+
+            let query = CKQuery(recordType: CloudKitConfiguration.invitationRecordType, predicate: predicate)
+            
+            CloudKitConfiguration.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    if let record = try? matchResults.first?.1.get() {
+                        record["status"] = "revoked"
+                        CloudKitConfiguration.privateDatabase.save(record) { (_, error) in
+                            DispatchQueue.main.async {
+                                completion(error)
+                            }
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            completion(nil)
+                        }
+                    }
+                case .failure(let error):
+                    print("Error fetching invitation to revoke: \(error)")
+                    DispatchQueue.main.async {
+                        completion(error)
+                    }
+                }
+            }
+        } else {
+            // Fallback for older iOS versions
+            let query = CKQuery(recordType: CloudKitConfiguration.invitationRecordType, predicate: predicate)
+            
+            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        completion(error)
+                    }
+                    return
+                }
+                
+                if let record = records?.first {
+                    record["status"] = "revoked"
+                    CloudKitConfiguration.privateDatabase.save(record) { (_, error) in
+                        DispatchQueue.main.async {
+                            completion(error)
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        completion(nil)
                     }
                 }
             }
@@ -340,43 +407,6 @@ class CloudKitPermissionManager: ObservableObject {
                     // Refresh permissions
                     self?.fetchUserPermissions()
                     completion(true, nil)
-                }
-            }
-        }
-    }
-    
-    /// Helper to mark an invitation as revoked
-    private func markInvitationAsRevoked(code: String) {
-        let predicate = NSPredicate(format: "code == %@", code)
-        
-        if #available(iOS 15.0, macOS 12.0, *) {
-            // Use the newer API for iOS 15+
-            let query = CKQuery(recordType: CloudKitConfiguration.invitationRecordType, predicate: predicate)
-            
-            CloudKitConfiguration.privateDatabase.fetch(withQuery: query, inZoneWith: nil, desiredKeys: nil, resultsLimit: 1) { result in
-                switch result {
-                case .success(let (matchResults, _)):
-                    if let _ = matchResults.first?.0,
-                       var record = try? matchResults.first?.1.get() {
-                        record["status"] = "revoked"
-                        CloudKitConfiguration.privateDatabase.save(record) { (_, _) in
-                            // No additional handling needed
-                        }
-                    }
-                case .failure(let error):
-                    print("Error fetching invitation to revoke: \(error)")
-                }
-            }
-        } else {
-            // Fallback for older iOS versions
-            let query = CKQuery(recordType: CloudKitConfiguration.invitationRecordType, predicate: predicate)
-            
-            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { (records: [CKRecord]?, error: Error?) in
-                if let record = records?.first {
-                    record["status"] = "revoked"
-                    CloudKitConfiguration.privateDatabase.save(record) { (_, _) in
-                        // No additional handling needed
-                    }
                 }
             }
         }

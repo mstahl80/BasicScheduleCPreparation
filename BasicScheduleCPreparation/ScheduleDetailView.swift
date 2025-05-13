@@ -1,4 +1,4 @@
-// Updated ScheduleDetailView with only one history button
+// Updated ScheduleDetailView with Purchased Item field
 import SwiftUI
 
 struct ScheduleDetailView: View {
@@ -37,6 +37,12 @@ struct ScheduleDetailView: View {
             Section("Transaction Details") {
                 LabeledContent("Date", value: item.date ?? Date(), format: .dateTime.day().month().year())
                 LabeledContent("Payee/Store", value: item.store ?? "")
+                
+                // Display Purchased Item if it exists
+                let purchasedItem = item.value(forKey: "purchasedItem") as? String ?? ""
+                if !purchasedItem.isEmpty {
+                    LabeledContent("Purchased Item", value: purchasedItem)
+                }
                 
                 HStack {
                     Text("Amount")
@@ -241,6 +247,7 @@ struct ScheduleDetailView_Previews: PreviewProvider {
         testItem.id = UUID()
         testItem.date = Date()
         testItem.store = "Office Supplies Store"
+        testItem.setValue("Printer Ink", forKey: "purchasedItem")
         testItem.amount = NSDecimalNumber(value: 125.99)
         testItem.category = "Office expenses"
         testItem.notes = "Printer ink and paper"

@@ -1,4 +1,4 @@
-// Schedule+Extensions.swift
+// Updated Schedule+Extensions.swift with purchasedItem
 import Foundation
 import CoreData
 
@@ -14,6 +14,10 @@ extension Schedule {
     
     var wrappedStore: String {
         store ?? ""
+    }
+    
+    var wrappedPurchasedItem: String {
+        value(forKey: "purchasedItem") as? String ?? ""
     }
     
     var wrappedCategory: String {
@@ -50,6 +54,7 @@ extension Schedule {
         date: Date,
         amount: Decimal,
         store: String,
+        purchasedItem: String,
         category: String,
         notes: String? = nil,
         photoURL: String? = nil,
@@ -60,6 +65,7 @@ extension Schedule {
         newItem.date = date
         newItem.amount = NSDecimalNumber(decimal: amount)
         newItem.store = store
+        newItem.setValue(purchasedItem, forKey: "purchasedItem")
         newItem.category = category
         newItem.notes = notes
         newItem.photoURL = photoURL
@@ -75,6 +81,7 @@ extension Schedule {
         date: Date? = nil,
         amount: Decimal? = nil,
         store: String? = nil,
+        purchasedItem: String? = nil,
         category: String? = nil,
         notes: String? = nil,
         photoURL: String? = nil,
@@ -90,6 +97,10 @@ extension Schedule {
         
         if let store = store {
             self.store = store
+        }
+        
+        if let purchasedItem = purchasedItem {
+            self.setValue(purchasedItem, forKey: "purchasedItem")
         }
         
         if let category = category {

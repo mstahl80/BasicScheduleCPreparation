@@ -1,4 +1,4 @@
-// ScheduleListView.swift - Complete file with export functionality
+// ScheduleListView.swift - Complete file with export functionality and updated ScheduleRowView
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -416,7 +416,11 @@ struct ScheduleListView: View {
                 let notesMatch = (item.notes ?? "").localizedCaseInsensitiveContains(searchText)
                 let businessMatch = (item.businessName ?? "").localizedCaseInsensitiveContains(searchText)
                 
-                return storeMatch || categoryMatch || notesMatch || businessMatch
+                // Add purchased item search
+                let purchasedItem = item.value(forKey: "purchasedItem") as? String ?? ""
+                let purchasedItemMatch = purchasedItem.localizedCaseInsensitiveContains(searchText)
+                
+                return storeMatch || categoryMatch || notesMatch || businessMatch || purchasedItemMatch
             }
         }
         
@@ -424,7 +428,7 @@ struct ScheduleListView: View {
     }
 }
 
-// MARK: - Row View
+// MARK: - Updated Row View
 struct ScheduleRowView: View {
     let item: Schedule
     
@@ -446,9 +450,16 @@ struct ScheduleRowView: View {
                 Text(item.store ?? "")
                     .font(.headline)
                 
+                // Show purchased item below store if available
+                if let purchasedItem = item.value(forKey: "purchasedItem") as? String, !purchasedItem.isEmpty {
+                    Text(purchasedItem)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
                 HStack {
                     Text(item.category ?? "")
-                        .font(.subheadline)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     
                     Spacer()

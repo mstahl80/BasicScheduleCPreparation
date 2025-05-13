@@ -1,4 +1,4 @@
-// ScheduleViewModel.swift - Updated with edit tracking functionality
+// Updated ScheduleViewModel.swift to include purchasedItem
 import Foundation
 import CoreData
 import SwiftUI
@@ -141,11 +141,12 @@ class ScheduleViewModel: ObservableObject {
         return income - expenses
     }
     
-    // Add a new schedule item
+    // Add a new schedule item - updated to include purchased item
     func addScheduleItem(
         date: Date,
         amount: Decimal,
         store: String,
+        purchasedItem: String,
         category: String,
         notes: String? = nil,
         photoURL: String? = nil,
@@ -160,6 +161,8 @@ class ScheduleViewModel: ObservableObject {
         newItem.date = date
         newItem.amount = NSDecimalNumber(decimal: amount)
         newItem.store = store
+        // Set the purchased item
+        newItem.setValue(purchasedItem, forKey: "purchasedItem")
         newItem.category = category
         newItem.notes = notes
         newItem.photoURL = photoURL
@@ -189,12 +192,13 @@ class ScheduleViewModel: ObservableObject {
         return nil
     }
     
-    // Update an existing schedule item
+    // Update an existing schedule item - updated to include purchased item
     func updateScheduleItem(
         _ item: Schedule,
         date: Date,
         amount: Decimal,
         store: String,
+        purchasedItem: String,
         category: String,
         notes: String? = nil,
         photoURL: String? = nil,
@@ -207,6 +211,7 @@ class ScheduleViewModel: ObservableObject {
         let oldDate = item.date ?? Date()
         let oldAmount = item.amount?.decimalValue ?? Decimal(0)
         let oldStore = item.store ?? ""
+        let oldPurchasedItem = item.value(forKey: "purchasedItem") as? String ?? ""
         let oldCategory = item.category ?? ""
         let oldNotes = item.notes ?? ""
         let oldPhotoURL = item.photoURL ?? ""
@@ -218,6 +223,8 @@ class ScheduleViewModel: ObservableObject {
         item.date = date
         item.amount = NSDecimalNumber(decimal: amount)
         item.store = store
+        // Update the purchased item
+        item.setValue(purchasedItem, forKey: "purchasedItem")
         item.category = category
         item.notes = notes
         item.photoURL = photoURL
@@ -261,6 +268,18 @@ class ScheduleViewModel: ObservableObject {
                 fieldName: "Store",
                 oldValue: oldStore,
                 newValue: store,
+                modifiedBy: userId
+            )
+        }
+        
+        // Record changes for the purchased item
+        if oldPurchasedItem != purchasedItem {
+            HistoryHelper.recordChange(
+                in: viewContext,
+                scheduleId: item.id ?? UUID(),
+                fieldName: "Purchased Item",
+                oldValue: oldPurchasedItem,
+                newValue: purchasedItem,
                 modifiedBy: userId
             )
         }

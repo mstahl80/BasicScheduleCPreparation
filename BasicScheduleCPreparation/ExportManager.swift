@@ -1,7 +1,9 @@
-// ExportManager.swift - Fixed version
+// ExportManager.swift - Using ZIPFoundation
 import Foundation
 import CoreData
 import SwiftUI
+import ZIPFoundation  // Import the ZIPFoundation library
+
 #if os(iOS)
 import UIKit
 import MobileCoreServices
@@ -166,6 +168,7 @@ class ExportManager {
                         let zipFilename = "schedule_export_\(self.formatDate(date)).zip"
                         let zipFileURL = FileManager.default.temporaryDirectory.appendingPathComponent(zipFilename)
                         
+                        // Create ZIP archive using ZIPFoundation
                         try self.createZipFile(at: zipFileURL, contentsOf: tempDir)
                         
                         // Clean up the temporary directory
@@ -188,28 +191,35 @@ class ExportManager {
         }
     }
     
-    /// Creates a zip file from the contents of a directory
+    /// Creates a zip file from the contents of a directory using ZIPFoundation
     private func createZipFile(at destinationURL: URL, contentsOf directoryURL: URL) throws {
-        #if os(iOS) || os(macOS)
-        // Import Foundation for Process
-        import Foundation
-        
-        // Use the command line zip tool via Process
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
-        process.arguments = ["-r", destinationURL.path, "."]
-        process.currentDirectoryURL = directoryURL
-        
-        try process.run()
-        process.waitUntilExit()
-        
-        if process.terminationStatus != 0 {
-            throw NSError(domain: "ExportManager", code: 3, userInfo: [NSLocalizedDescriptionKey: "Failed to create zip file: exit code \(process.terminationStatus)"])
+        // Create archive with ZIPFoundation
+        // First ensure there's no existing file
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
         }
-        #else
-        // On other platforms, you might need a different approach or a third-party library
-        throw NSError(domain: "ExportManager", code: 4, userInfo: [NSLocalizedDescriptionKey: "Zip creation not supported on this platform"])
-        #endif
+        
+        // Create a new archive at the destination URL using the throwing initializer
+        // This replaces the deprecated guard let archive = Archive(url:accessMode:) syntax
+        let archive = try Archive(url: destinationURL, accessMode: .create)
+        
+        // Get all files in the directory
+        let fileManager = FileManager.default
+        let fileEnumerator = fileManager.enumerator(at: directoryURL, includingPropertiesForKeys: nil)
+        
+        while let fileURL = fileEnumerator?.nextObject() as? URL {
+            // Skip directories themselves (ZIPFoundation will create them as needed)
+            var isDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: fileURL.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                continue
+            }
+            
+            // Get relative path for the entry within the archive
+            let relativePath = fileURL.relativePath(from: directoryURL)
+            
+            // Add the file to the archive
+            try archive.addEntry(with: relativePath, relativeTo: directoryURL)
+        }
     }
     
     // Date formatter helper
@@ -278,4 +288,30 @@ class ExportManager {
         }
     }
     #endif
+}
+
+// MARK: - URL Extension for Relative Paths
+extension URL {
+    /// Get the relative path of this URL from a base URL
+    func relativePath(from base: URL) -> String {
+        // Ensure that both URLs are file URLs with standardized paths
+        let destPath = self.standardized.path
+        let basePath = base.standardized.path
+        
+        // If the base path has a trailing slash, remove it
+        let normalizedBasePath = basePath.hasSuffix("/") ? String(basePath.dropLast()) : basePath
+        
+        // Make sure destPath starts with the basePath
+        guard destPath.hasPrefix(normalizedBasePath) else {
+            return self.lastPathComponent
+        }
+        
+        // Remove the base path and the leading slash if any
+        var relativePath = String(destPath.dropFirst(normalizedBasePath.count))
+        if relativePath.hasPrefix("/") {
+            relativePath = String(relativePath.dropFirst())
+        }
+        
+        return relativePath.isEmpty ? self.lastPathComponent : relativePath
+    }
 }

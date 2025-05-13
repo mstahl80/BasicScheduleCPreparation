@@ -1,4 +1,4 @@
-// Updated BusinessSummaryView.swift
+// BusinessSummaryView.swift - Fixed version
 import SwiftUI
 import Charts
 
@@ -596,8 +596,11 @@ struct BusinessSummaryView: View {
     // Get items for a specific business
     private func getItemsForBusiness(_ businessId: UUID) -> [Schedule] {
         return filteredItems().filter { item in
-            if let itemBusinessIdObj = item.businessId as? NSUUID {
-                return UUID(uuidString: itemBusinessIdObj.uuidString) == businessId
+            // Fixed: Remove the unnecessary conditional downcast
+            if let businessIdObj = item.businessId {
+                // Convert NSUUID to string and then to UUID for comparison
+                let idString = businessIdObj.uuidString
+                return UUID(uuidString: idString) == businessId
             }
             return false
         }

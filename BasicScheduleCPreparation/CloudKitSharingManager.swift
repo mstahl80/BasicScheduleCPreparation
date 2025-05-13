@@ -1,4 +1,4 @@
-// Final CloudKitSharingManager.swift - with permission checking but no participant methods
+// Updated CloudKitSharingManager.swift with modern API usage
 import CloudKit
 import SwiftUI
 
@@ -82,28 +82,58 @@ class CloudKitSharingManager: ObservableObject {
         // Create a query for the share record type
         let query = CKQuery(recordType: "cloudkit.share", predicate: NSPredicate(value: true))
         
-        // Perform the query
-        CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.errorMessage = error.localizedDescription
-                    completion(nil, error)
-                }
-                return
-            }
-            
-            // Convert records to shares
-            var shares: [CKShare] = []
-            if let records = records {
-                for record in records {
-                    if let share = record as? CKShare {
-                        shares.append(share)
+        // Perform the query using the appropriate API based on iOS version
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // Use newer API for iOS 15+
+            CloudKitConfiguration.privateDatabase.fetch(
+                withQuery: query,
+                inZoneWith: nil,
+                desiredKeys: nil,
+                resultsLimit: CloudKitConfiguration.defaultQueryLimit
+            ) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    var shares: [CKShare] = []
+                    for (_, recordResult) in matchResults {
+                        if let record = try? recordResult.get(), let share = record as? CKShare {
+                            shares.append(share)
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        completion(shares, nil)
+                    }
+                    
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        self.errorMessage = error.localizedDescription
+                        completion(nil, error)
                     }
                 }
             }
-            
-            DispatchQueue.main.async {
-                completion(shares, nil)
+        } else {
+            // Use older API for iOS 14 and earlier
+            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.errorMessage = error.localizedDescription
+                        completion(nil, error)
+                    }
+                    return
+                }
+                
+                // Convert records to shares
+                var shares: [CKShare] = []
+                if let records = records {
+                    for record in records {
+                        if let share = record as? CKShare {
+                            shares.append(share)
+                        }
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    completion(shares, nil)
+                }
             }
         }
     }
@@ -201,25 +231,51 @@ class CloudKitSharingManager: ObservableObject {
             let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
             let query = CKQuery(recordType: CloudKitConfiguration.userPermissionRecordType, predicate: predicate)
             
-            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
-                DispatchQueue.main.async {
-                    if let error = error {
+            if #available(iOS 15.0, macOS 12.0, *) {
+                // Use newer API for iOS 15+
+                CloudKitConfiguration.privateDatabase.fetch(
+                    withQuery: query,
+                    inZoneWith: nil,
+                    desiredKeys: nil,
+                    resultsLimit: 1
+                ) { result in
+                    switch result {
+                    case .success(let (matchResults, _)):
+                        DispatchQueue.main.async {
+                            if let record = try? matchResults.first?.1.get(),
+                               let roleString = record["role"] as? String,
+                               let role = CloudKitTypes.UserPermissionRecord.UserRole(rawValue: roleString) {
+                                completion(role)
+                            } else {
+                                completion(nil)
+                            }
+                        }
+                        
+                    case .failure(let error):
                         print("Error checking user permissions: \(error.localizedDescription)")
-                        completion(nil)
-                        return
+                        DispatchQueue.main.async {
+                            completion(nil)
+                        }
                     }
-                    
-                    guard let record = records?.first else {
-                        completion(nil)
-                        return
-                    }
-                    
-                    // Extract the role from the record
-                    if let roleString = record["role"] as? String,
-                       let role = CloudKitTypes.UserPermissionRecord.UserRole(rawValue: roleString) {
-                        completion(role)
-                    } else {
-                        completion(nil)
+                }
+            } else {
+                // Fallback for older iOS versions
+                CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
+                    DispatchQueue.main.async {
+                        if let error = error {
+                            print("Error checking user permissions: \(error.localizedDescription)")
+                            completion(nil)
+                            return
+                        }
+                        
+                        // Extract the role from the record
+                        if let record = records?.first,
+                           let roleString = record["role"] as? String,
+                           let role = CloudKitTypes.UserPermissionRecord.UserRole(rawValue: roleString) {
+                            completion(role)
+                        } else {
+                            completion(nil)
+                        }
                     }
                 }
             }
@@ -249,43 +305,51 @@ class CloudKitSharingManager: ObservableObject {
             let predicate = NSPredicate(format: "userId == %@", recordID.recordName)
             let query = CKQuery(recordType: CloudKitConfiguration.userPermissionRecordType, predicate: predicate)
             
-            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        completion(false, error.localizedDescription)
+            if #available(iOS 15.0, macOS 12.0, *) {
+                // Use newer API for iOS 15+
+                CloudKitConfiguration.privateDatabase.fetch(
+                    withQuery: query,
+                    inZoneWith: nil,
+                    desiredKeys: nil,
+                    resultsLimit: 1
+                ) { [weak self] result in
+                    guard let self = self else { return }
+                    
+                    switch result {
+                    case .success(let (matchResults, _)):
+                        if let _ = matchResults.first?.0,
+                           let existingRecord = try? matchResults.first?.1.get() {
+                            // Update existing record to admin role
+                            self.updateExistingUserToAdmin(record: existingRecord, completion: completion)
+                        } else {
+                            // Create new admin permission record
+                            self.createNewAdminUser(recordID: recordID, userName: self.getCurrentUserName(), completion: completion)
+                        }
+                        
+                    case .failure(let error):
+                        DispatchQueue.main.async {
+                            completion(false, error.localizedDescription)
+                        }
                     }
-                    return
                 }
-                
-                if let existingRecord = records?.first {
-                    // Update existing record to admin role
-                    existingRecord["role"] = CloudKitTypes.UserPermissionRecord.UserRole.admin.rawValue
+            } else {
+                // Fallback for older iOS versions
+                CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { [weak self] (records: [CKRecord]?, error: Error?) in
+                    guard let self = self else { return }
                     
-                    CloudKitConfiguration.privateDatabase.save(existingRecord) { _, error in
+                    if let error = error {
                         DispatchQueue.main.async {
-                            if let error = error {
-                                completion(false, error.localizedDescription)
-                            } else {
-                                completion(true, nil)
-                            }
+                            completion(false, error.localizedDescription)
                         }
+                        return
                     }
-                } else {
-                    // Create new admin permission record
-                    let permissionRecord = CKRecord(recordType: CloudKitConfiguration.userPermissionRecordType)
-                    permissionRecord["userId"] = recordID.recordName
-                    permissionRecord["userName"] = self.getCurrentUserName()
-                    permissionRecord["role"] = CloudKitTypes.UserPermissionRecord.UserRole.admin.rawValue
-                    permissionRecord["addedDate"] = Date()
                     
-                    CloudKitConfiguration.privateDatabase.save(permissionRecord) { _, error in
-                        DispatchQueue.main.async {
-                            if let error = error {
-                                completion(false, error.localizedDescription)
-                            } else {
-                                completion(true, nil)
-                            }
-                        }
+                    if let record = records?.first {
+                        // Update existing record to admin role
+                        self.updateExistingUserToAdmin(record: record, completion: completion)
+                    } else {
+                        // Create new admin permission record
+                        self.createNewAdminUser(recordID: recordID, userName: self.getCurrentUserName(), completion: completion)
                     }
                 }
             }
@@ -298,27 +362,64 @@ class CloudKitSharingManager: ObservableObject {
         let query = CKQuery(recordType: CloudKitConfiguration.userPermissionRecordType, predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "addedDate", ascending: false)]
         
-        CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    self.errorMessage = error.localizedDescription
-                    completion(nil, error)
-                }
-                return
-            }
-            
-            // Convert records to permission records
-            var permissions: [CloudKitTypes.UserPermissionRecord] = []
-            if let records = records {
-                for record in records {
-                    if let permission = CloudKitTypes.UserPermissionRecord.from(record: record) {
-                        permissions.append(permission)
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // Use newer API for iOS 15+
+            CloudKitConfiguration.privateDatabase.fetch(
+                withQuery: query,
+                inZoneWith: nil,
+                desiredKeys: nil,
+                resultsLimit: CloudKitConfiguration.defaultQueryLimit
+            ) { [weak self] result in
+                guard let self = self else { return }
+                
+                switch result {
+                case .success(let (matchResults, _)):
+                    var permissions: [CloudKitTypes.UserPermissionRecord] = []
+                    
+                    for (_, recordResult) in matchResults {
+                        if let record = try? recordResult.get(),
+                           let permission = CloudKitTypes.UserPermissionRecord.from(record: record) {
+                            permissions.append(permission)
+                        }
+                    }
+                    
+                    DispatchQueue.main.async {
+                        completion(permissions, nil)
+                    }
+                    
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        self.errorMessage = error.localizedDescription
+                        completion(nil, error)
                     }
                 }
             }
-            
-            DispatchQueue.main.async {
-                completion(permissions, nil)
+        } else {
+            // Fallback for older iOS versions
+            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { [weak self] (records, error) in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.errorMessage = error.localizedDescription
+                        completion(nil, error)
+                    }
+                    return
+                }
+                
+                // Convert records to permission records
+                var permissions: [CloudKitTypes.UserPermissionRecord] = []
+                if let records = records {
+                    for record in records {
+                        if let permission = CloudKitTypes.UserPermissionRecord.from(record: record) {
+                            permissions.append(permission)
+                        }
+                    }
+                }
+                
+                DispatchQueue.main.async {
+                    completion(permissions, nil)
+                }
             }
         }
     }
@@ -328,14 +429,14 @@ class CloudKitSharingManager: ObservableObject {
     ///   - permission: The permission record to revoke
     ///   - completion: Closure with optional error
     func revokeAccess(_ permission: CloudKitTypes.UserPermissionRecord, completion: @escaping (Error?) -> Void) {
-        CloudKitConfiguration.privateDatabase.delete(withRecordID: permission.id) { _, error in
+        CloudKitConfiguration.privateDatabase.delete(withRecordID: permission.id) { [weak self] (_, error) in
             DispatchQueue.main.async {
                 if let error = error {
-                    self.errorMessage = error.localizedDescription
+                    self?.errorMessage = error.localizedDescription
                     completion(error)
                 } else {
                     // If there's an invitation code, also mark it as revoked
-                    if let code = permission.invitationCode {
+                    if let code = permission.invitationCode, let self = self {
                         self.markInvitationAsRevoked(code: code, completion: completion)
                     } else {
                         completion(nil)
@@ -350,27 +451,98 @@ class CloudKitSharingManager: ObservableObject {
         let predicate = NSPredicate(format: "code == %@", code)
         let query = CKQuery(recordType: CloudKitConfiguration.invitationRecordType, predicate: predicate)
         
-        CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { records, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    completion(error)
+        if #available(iOS 15.0, macOS 12.0, *) {
+            // Use newer API for iOS 15+
+            CloudKitConfiguration.privateDatabase.fetch(
+                withQuery: query,
+                inZoneWith: nil,
+                desiredKeys: nil,
+                resultsLimit: 1
+            ) { result in
+                switch result {
+                case .success(let (matchResults, _)):
+                    guard let record = try? matchResults.first?.1.get() else {
+                        DispatchQueue.main.async {
+                            completion(nil)
+                        }
+                        return
+                    }
+                    
+                    // Mark the invitation as revoked
+                    record["status"] = "revoked"
+                    
+                    CloudKitConfiguration.privateDatabase.save(record) { (_, error) in
+                        DispatchQueue.main.async {
+                            completion(error)
+                        }
+                    }
+                    
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        completion(error)
+                    }
                 }
-                return
             }
-            
-            guard let record = records?.first else {
-                DispatchQueue.main.async {
-                    completion(nil)
+        } else {
+            // Fallback for older iOS versions
+            CloudKitConfiguration.privateDatabase.perform(query, inZoneWith: nil) { (records, error) in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        completion(error)
+                    }
+                    return
                 }
-                return
+                
+                guard let record = records?.first else {
+                    DispatchQueue.main.async {
+                        completion(nil)
+                    }
+                    return
+                }
+                
+                // Mark the invitation as revoked
+                record["status"] = "revoked"
+                
+                CloudKitConfiguration.privateDatabase.save(record) { (_, error) in
+                    DispatchQueue.main.async {
+                        completion(error)
+                    }
+                }
             }
-            
-            // Mark the invitation as revoked
-            record["status"] = "revoked"
-            
-            CloudKitConfiguration.privateDatabase.save(record) { _, error in
-                DispatchQueue.main.async {
-                    completion(error)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Helper to update an existing user record to admin role
+    private func updateExistingUserToAdmin(record: CKRecord, completion: @escaping (Bool, String?) -> Void) {
+        record["role"] = CloudKitTypes.UserPermissionRecord.UserRole.admin.rawValue
+        
+        CloudKitConfiguration.privateDatabase.save(record) { (_, error) in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(false, error.localizedDescription)
+                } else {
+                    completion(true, nil)
+                }
+            }
+        }
+    }
+    
+    /// Helper to create a new admin user record
+    private func createNewAdminUser(recordID: CKRecord.ID, userName: String, completion: @escaping (Bool, String?) -> Void) {
+        let permissionRecord = CKRecord(recordType: CloudKitConfiguration.userPermissionRecordType)
+        permissionRecord["userId"] = recordID.recordName
+        permissionRecord["userName"] = userName
+        permissionRecord["role"] = CloudKitTypes.UserPermissionRecord.UserRole.admin.rawValue
+        permissionRecord["addedDate"] = Date()
+        
+        CloudKitConfiguration.privateDatabase.save(permissionRecord) { (_, error) in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(false, error.localizedDescription)
+                } else {
+                    completion(true, nil)
                 }
             }
         }
@@ -424,48 +596,6 @@ class CloudKitSharingDelegate: NSObject, UICloudSharingControllerDelegate, Obser
     
     func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
         print("Stopped sharing")
-    }
-}
-#endif
-
-/// Helper struct for CloudKit sharing in SwiftUI
-#if os(iOS)
-@available(iOS 13.0, *)
-struct CloudKitShareButton: View {
-    let share: CKShare
-    
-    @State private var sharingDelegate = CloudKitSharingDelegate()
-    @State private var showShareSheet = false
-    
-    var body: some View {
-        Button(action: {
-            showShareSheet = true
-        }) {
-            Label("Share", systemImage: "square.and.arrow.up")
-        }
-        .background(
-            EmptyView().sheet(isPresented: $showShareSheet) {
-                CloudKitShareSheet(share: share, delegate: sharingDelegate)
-            }
-        )
-    }
-}
-
-/// Wrapper view for UICloudSharingController in SwiftUI
-@available(iOS 13.0, *)
-struct CloudKitShareSheet: UIViewControllerRepresentable {
-    let share: CKShare
-    let delegate: UICloudSharingControllerDelegate
-    
-    func makeUIViewController(context: Context) -> UICloudSharingController {
-        let controller = UICloudSharingController(share: share, container: CloudKitConfiguration.container)
-        controller.delegate = delegate
-        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
-        return controller
-    }
-    
-    func updateUIViewController(_ uiViewController: UICloudSharingController, context: Context) {
-        // No updates needed
     }
 }
 #endif

@@ -1,4 +1,4 @@
-// PersistenceController.swift - Fixed version with recreateStore method
+// PersistenceController.swift - With lightweight migration enabled
 import CoreData
 import CloudKit
 
@@ -28,6 +28,11 @@ class PersistenceController {
                 .appendingPathComponent("\(containerName)_local.sqlite")
             
             let description = NSPersistentStoreDescription(url: storeURL)
+            
+            // Enable lightweight migration for local container
+            description.shouldMigrateStoreAutomatically = true
+            description.shouldInferMappingModelAutomatically = true
+            
             localContainer.persistentStoreDescriptions = [description]
         }
         
@@ -43,6 +48,11 @@ class PersistenceController {
                 .appendingPathComponent("\(containerName)_shared.sqlite")
             
             let description = NSPersistentStoreDescription(url: storeURL)
+            
+            // Enable lightweight migration for shared container
+            description.shouldMigrateStoreAutomatically = true
+            description.shouldInferMappingModelAutomatically = true
+            
             // Configure for CloudKit
             let containerIdentifier = "iCloud.com.matthewstahl.BasicScheduleCPreparation"
             let options = NSPersistentCloudKitContainerOptions(containerIdentifier: containerIdentifier)
