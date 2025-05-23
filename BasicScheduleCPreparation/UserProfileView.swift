@@ -1,4 +1,4 @@
-// UserProfileView.swift - Enhanced version with standalone default and export functionality
+// UserProfileView.swift - Complete file with standalone mode defaults
 import SwiftUI
 import CloudKit
 
@@ -395,6 +395,9 @@ struct UserProfileView: View {
     private func toggleDataSharingMode(useShared: Bool) {
         UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
         
+        // Mark that mode was explicitly set by user
+        UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
+        
         if useShared {
             // Check if authenticated
             if !isAuthenticated() {
@@ -443,6 +446,7 @@ struct UserProfileView: View {
         let isUsingSharedData = defaults.bool(forKey: "isUsingSharedData")
         let currentUserData = defaults.data(forKey: "currentUser")
         let acceptedInvitationCode = defaults.string(forKey: "acceptedInvitationCode")
+        let modeWasExplicitlySet = defaults.bool(forKey: "modeWasExplicitlySet")
         
         // Clear all UserDefaults
         if let bundleIdentifier = Bundle.main.bundleIdentifier {
@@ -451,6 +455,7 @@ struct UserProfileView: View {
         
         // Restore critical values
         defaults.set(isUsingSharedData, forKey: "isUsingSharedData")
+        defaults.set(modeWasExplicitlySet, forKey: "modeWasExplicitlySet")
         if let userData = currentUserData {
             defaults.set(userData, forKey: "currentUser")
         }

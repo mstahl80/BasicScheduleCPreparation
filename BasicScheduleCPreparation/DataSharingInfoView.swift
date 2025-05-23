@@ -1,4 +1,4 @@
-// DataSharingInfoView.swift - Explains data sharing options to users
+// DataSharingInfoView.swift - Complete file with standalone mode default support
 import SwiftUI
 
 struct DataSharingInfoView: View {
@@ -260,6 +260,9 @@ struct DataSharingInfoView: View {
     
     private func toggleDataSharingMode(useShared: Bool) {
         UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
+        
+        // Mark that mode was explicitly set by user
+        UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
         
         if useShared {
             PersistenceController.shared.switchToSharedStore()

@@ -1,8 +1,8 @@
-// WelcomeView.swift - Initial onboarding screen emphasizing standalone mode
+// WelcomeView.swift - Updated with onComplete callback
 import SwiftUI
 
 struct WelcomeView: View {
-    @State private var showMainApp = false
+    var onComplete: () -> Void
     
     var body: some View {
         NavigationStack {
@@ -88,7 +88,7 @@ struct WelcomeView: View {
                 
                 // Get started button
                 Button {
-                    showMainApp = true
+                    onComplete()
                 } label: {
                     Text("Get Started")
                         .fontWeight(.bold)
@@ -102,9 +102,6 @@ struct WelcomeView: View {
                 .padding(.bottom, 20)
             }
             .padding()
-            .navigationDestination(isPresented: $showMainApp) {
-                ScheduleListView()
-            }
             .navigationBarHidden(true)
         }
     }
@@ -113,7 +110,7 @@ struct WelcomeView: View {
 #if DEBUG
 struct WelcomeView_Previews: PreviewProvider {
     static var previews: some View {
-        WelcomeView()
+        WelcomeView(onComplete: {})
     }
 }
 #endif

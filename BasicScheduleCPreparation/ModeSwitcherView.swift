@@ -1,4 +1,4 @@
-// ModeSwitcherView.swift
+// ModeSwitcherView.swift - Complete file with standalone mode default support
 import SwiftUI
 
 struct ModeSwitcherView: View {
@@ -137,6 +137,9 @@ struct ModeSwitcherView: View {
         // Update UserDefaults
         UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
         
+        // Mark that mode was explicitly set by user
+        UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
+        
         if useShared {
             // Check if authenticated
             let isAuthenticated = isUserAuthenticated()
@@ -269,6 +272,8 @@ struct SimpleInvitationView: View {
             if success {
                 // Mark that we're using shared data
                 UserDefaults.standard.set(true, forKey: "isUsingSharedData")
+                // Mark that mode was explicitly set
+                UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
                 
                 // Switch to shared store
                 PersistenceController.shared.switchToSharedStore()

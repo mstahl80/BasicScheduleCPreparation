@@ -1,4 +1,4 @@
-// PersistenceController.swift - With lightweight migration enabled
+// PersistenceController.swift - With standalone mode default
 import CoreData
 import CloudKit
 
@@ -87,8 +87,13 @@ class PersistenceController {
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
         }
         
-        // Check if we should start in shared mode
-        let isUsingSharedData = UserDefaults.standard.bool(forKey: "isUsingSharedData")
+        // Check if we should start in shared mode - default to standalone mode
+        // Check if mode was explicitly set
+        let modeWasSet = UserDefaults.standard.bool(forKey: "modeWasExplicitlySet")
+        
+        // Default to standalone mode for first launch
+        let isUsingSharedData = modeWasSet ?
+            UserDefaults.standard.bool(forKey: "isUsingSharedData") : false
         
         // Set the initial container
         container = isUsingSharedData ? sharedContainer : localContainer
@@ -203,6 +208,7 @@ class PersistenceController {
                 
                 // Mark that we're using shared data
                 UserDefaults.standard.set(true, forKey: "isUsingSharedData")
+                UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
                 
                 completion(true, nil)
             } else {

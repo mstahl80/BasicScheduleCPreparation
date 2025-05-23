@@ -1,4 +1,4 @@
-// LoginView.swift
+// LoginView.swift - Complete file with standalone mode default support
 import SwiftUI
 import AuthenticationServices
 
@@ -173,6 +173,9 @@ struct LoginView: View {
                 // Mark that we're using shared data
                 UserDefaults.standard.set(true, forKey: "isUsingSharedData")
                 
+                // Mark that mode was explicitly set
+                UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
+                
                 // Switch to shared store
                 PersistenceController.shared.switchToSharedStore()
                 
@@ -207,11 +210,18 @@ struct LoginView: View {
     private func toggleDataSharingMode(useShared: Bool) {
         UserDefaults.standard.set(useShared, forKey: "isUsingSharedData")
         
+        // Mark that mode was explicitly set by user
+        UserDefaults.standard.set(true, forKey: "modeWasExplicitlySet")
+        
         if !useShared {
             PersistenceController.shared.switchToLocalStore()
         } else {
+            // Already authenticated, switch to shared store
             PersistenceController.shared.switchToSharedStore()
         }
+        
+        // Notify system of changes
+        NotificationCenter.default.post(name: Notification.Name("DataSharingModeChanged"), object: nil)
         
         // Force view update - using modern approach
         #if os(iOS)
